@@ -59,10 +59,18 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
   `context.diagnostics` through one host callback, `diag`; in `apps/nslab` a dragged slider's counter and snapshot
   showed in `agent ios state` and the geocode's span and measure in `perf hatches`. Packages get none, as Exact
   gives them none.
+- **7. Several sessions:** Exact's sample host builds for an app outside its repo
+  (`EXACT_APP_DIR=../../apps/nslab bun host/apple/build.mjs --ios --host nslab-apple`, about 10 s), and
+  `scripts/sessions-ios.mjs` drives its two sessions of `apps/nslab` on one VM: each keeps its own slider and
+  counters, and after one is destroyed the other still answers, with no late callback. Destroying a session freed
+  about 3 MB (135 to 132 MB); the VM stays. A native callback (a target-action, a completion handler) runs outside
+  any call, so the global `exact` cannot tell its session there: `defineModule` and `definePackage` now take a
+  function of the session, made once per session as a Swift module is, and the global `exact` throws when two
+  sessions make it ambiguous.
 
 ## Suggested order
 
-Next: the rest of 7 (teardown, several sessions), then 2, the demo, now that a phone runs it. 6 leaves
+Next: 2, the demo, now that a phone runs it. 6 leaves
 two questions:
 
 - **The remaining ~19 MB.** After the fixes above, the bridge step still adds 5 to 12 MB (the figures are noisy:
@@ -76,17 +84,6 @@ two questions:
 
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
-
-### 7b. Teardown and several sessions
-
-- Run the sample host that embeds two sessions: `bun host/apple/build.mjs --ios --host`, driven by
-  `bun scripts/smoke.mjs host-ios` and `scripts/agent.mjs host-ios --session a|b` (`vendor/exact/AGENTS.md`). The
-  host embeds two sessions of the plan of the app it is built for. First check it builds from an app outside
-  Exact's repo, `EXACT_APP_DIR=../../apps/nslab bun host/apple/build.mjs --ios --host nslab-apple`; unverified.
-- Expected: both sessions attach as clients of the one VM, and each client's views, timers and replies stay its own.
-  Verify by driving both sessions and ending one: the other keeps answering.
-- `nsx_detach` destroys a client's views and drops its state; the VM itself is never freed (the bridge caches JSI
-  values it does not release). Measure what a session's end leaves behind with the startup log's footprint method.
 
 ### 2. The demo
 
@@ -190,6 +187,10 @@ Its rules resist added apparatus and speculative specs. Stay zero-patch, and arr
 - Upstream `patches/ns-objc-extend-types.patch`, and type `NSArray` element classes so completion handlers are
   checked.
 - Ship libffi at a lower deployment target.
+- An error thrown in a native callback outside any call from JavaScript (a target-action, a completion handler)
+  is rethrown as an `NSException` and aborts the app (`nativeApiEngineCallbackTrampoline` in
+  `ffi/objc/shared/bridge/Callbacks.mm`). Offer a policy that reports it instead, as `uncaughtErrorPolicy: 'report'`
+  does in `@nativescript/core` 9.1.
 
 ### 10. State the boundaries up front
 

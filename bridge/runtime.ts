@@ -79,12 +79,21 @@ declare global {
 
 const host = __nsxHost;
 
-type Client = { module: string; instances: Map<number, ViewInstance>; tickers: Map<number, (f: { now: number; seq: number }) => void>; waits: Map<number, () => void> };
+type Definition<T> = T | ((session: Session) => T);
+type Client = {
+  module: string;
+  instances: Map<number, ViewInstance>;
+  tickers: Map<number, (f: { now: number; seq: number }) => void>;
+  waits: Map<number, () => void>;
+  session: Session;
+  made?: { from: Definition<NativeModule | NativePackage>; impl: NativeModule | NativePackage };
+};
 
 // Kept across a development reload, which evaluates the bundle again: attached clients and
 // their live views stay, and only the definitions are replaced.
-const state: { clients: Map<number, Client>; modules: Map<string, NativeModule | NativePackage>; current: number; nextToken: number } =
-  (globalThis as any).__nsxState ??= { clients: new Map(), modules: new Map(), current: 0, nextToken: 1 };
+const state: { clients: Map<number, Client>; modules: Map<string, Definition<NativeModule | NativePackage>>; current: number; depth: number; nextToken: number } =
+  (globalThis as any).__nsxState ??= { clients: new Map(), modules: new Map(), current: 0, depth: 0, nextToken: 1 };
+state.depth ??= 0;
 
 const describe = (value: unknown) => {
   if (typeof value === 'string') return value;
@@ -94,50 +103,77 @@ const describe = (value: unknown) => {
 const logger = (...args: unknown[]) => host.log(state.current || [...state.clients.keys()][0] || 0, args.map(describe).join(' '));
 globalThis.console = { log: logger, info: logger, warn: logger, error: logger, debug: logger };
 
-/** The session's clock: use it instead of CADisplayLink and NSTimer so the agent's `clock` moves your code. */
-export const exact = {
-  now: () => host.now(state.current),
-  changed: (topic: string) => host.changed(state.current, topic),
-  frames(body: (frame: { now: number; seq: number }) => void) {
-    const client = state.current, token = state.nextToken++;
-    state.clients.get(client)?.tickers.set(token, body);
-    host.frames(client, token, true);
-    return { stop() { if (state.clients.get(client)?.tickers.delete(token)) host.frames(client, token, false); } };
-  },
-  after(ms: number, body: () => void) {
-    const client = state.current, token = state.nextToken++;
-    state.clients.get(client)?.waits.set(token, body);
-    host.after(client, token, ms);
-    return { stop() { if (state.clients.get(client)?.waits.delete(token)) host.cancelAfter(client, token); } };
-  },
+/** One session's side of Exact, as a Swift module's `context`. */
+export interface Session {
+  /** The session's clock: use it instead of CADisplayLink and NSTimer so the agent's `clock` moves your code. */
+  now(): number;
+  changed(topic: string): void;
+  frames(body: (frame: { now: number; seq: number }) => void): { stop(): void };
+  after(ms: number, body: () => void): { stop(): void };
   /**
    * What the module says of itself, as Swift's `context.diagnostics`: `agent state` shows counters
    * and snapshots under `hatches`, `perf hatches` the timings. Development builds only; a package's
    * calls keep nothing. Names are lowercase letters, digits, `-` and `.`.
    */
   diagnostics: {
-    count: (name: string, by = 1) => { host.diag(state.current, 1, name, by, ''); },
-    measure: (name: string, ms: number) => { host.diag(state.current, 2, name, ms, ''); },
+    count(name: string, by?: number): void;
+    measure(name: string, ms: number): void;
     /** A span on the session clock; `end()` once closes it. */
-    begin(name: string) {
-      const client = state.current, token = host.diag(client, 3, name, 0, '');
+    begin(name: string): { end(): void };
+    /** The latest snapshot is kept; one over 4 KB of JSON is refused. */
+    publish(name: string, value: Json): void;
+  };
+}
+
+const sessionOf = (who: () => number): Session => ({
+  now: () => host.now(who()),
+  changed: (topic) => host.changed(who(), topic),
+  frames(body) {
+    const client = who(), token = state.nextToken++;
+    state.clients.get(client)?.tickers.set(token, body);
+    host.frames(client, token, true);
+    return { stop() { if (state.clients.get(client)?.tickers.delete(token)) host.frames(client, token, false); } };
+  },
+  after(ms, body) {
+    const client = who(), token = state.nextToken++;
+    state.clients.get(client)?.waits.set(token, body);
+    host.after(client, token, ms);
+    return { stop() { if (state.clients.get(client)?.waits.delete(token)) host.cancelAfter(client, token); } };
+  },
+  diagnostics: {
+    count: (name, by = 1) => { host.diag(who(), 1, name, by, ''); },
+    measure: (name, ms) => { host.diag(who(), 2, name, ms, ''); },
+    begin(name) {
+      const client = who(), token = host.diag(client, 3, name, 0, '');
       return { end() { if (token) host.diag(client, 4, '', token, ''); } };
     },
-    /** The latest snapshot is kept; one over 4 KB of JSON is refused. */
-    publish: (name: string, value: Json) => { host.diag(state.current, 5, name, 0, JSON.stringify(value) ?? 'null'); },
+    publish: (name, value) => { host.diag(who(), 5, name, 0, JSON.stringify(value) ?? 'null'); },
   },
-};
+});
 
-export function defineModule(module: NativeModule) {
+// A native callback (a target-action, a completion handler, a promise continuation) runs outside
+// any call from Swift, so only one attached session can be meant.
+const running = () => {
+  if (state.depth > 0) return state.current;
+  if (state.clients.size === 1) return state.clients.keys().next().value!;
+  throw new Error(`exact ran outside a call from Exact with ${state.clients.size} sessions attached, so it cannot tell whose; ` +
+    'define the module as a function of its session, defineModule((session) => ({ ... })), and use session there');
+}
+
+/** The session whose call is running. In native callbacks, use the session a module definition takes. */
+export const exact: Session = sessionOf(running);
+
+/** The app's module: an object, or a function of each session's `Session` that makes its own. */
+export function defineModule(module: Definition<NativeModule>) {
   state.modules.set('app', module);
 }
 
 /** A package's apple/native.ts: `export default definePackage({...})`; nsx.mjs registers it under the package's name. */
-export function definePackage(pkg: NativePackage): NativePackage {
+export function definePackage(pkg: Definition<NativePackage>): Definition<NativePackage> {
   return pkg;
 }
 
-export function __register(name: string, pkg: NativePackage) {
+export function __register(name: string, pkg: Definition<NativePackage>) {
   state.modules.set(name, pkg);
 }
 
@@ -152,10 +188,14 @@ const eventsFor = (client: number, view: number): ExactEvents => ({
 const clientOf = (client: number) => {
   const found = state.clients.get(client);
   if (!found) throw new Error(`no NativeScript client ${client}`);
-  state.current = client;
   return found;
 };
-const definition = (c: Client) => state.modules.get(c.module) ?? {};
+// A function definition is made once per session, and again after a reload replaces it.
+const definition = (c: Client): NativeModule | NativePackage => {
+  const from = state.modules.get(c.module) ?? {};
+  if (c.made?.from !== from) c.made = { from, impl: typeof from === 'function' ? from(c.session) : from };
+  return c.made.impl;
+};
 const isPackage = (c: Client) => c.module !== 'app';
 
 // A package's answer, as ExactPackage replies take it: an object as is, anything else under `exact:answer`.
@@ -169,10 +209,17 @@ const handlerFor = (c: Client, name: string) => {
   return handler;
 };
 
-(globalThis as any).__nsx = {
+const seam: Record<string, (client: number, ...rest: any[]) => unknown> = {
   attach(client: number, module: string) {
     if (!state.modules.has(module)) throw new Error(`no NativeScript module ${module} is defined; is it in the bundle nsx.mjs built?`);
-    state.clients.set(client, { module, instances: new Map(), tickers: new Map(), waits: new Map() });
+    const c: Client = { module, instances: new Map(), tickers: new Map(), waits: new Map(), session: sessionOf(() => client) };
+    state.clients.set(client, c);
+    try {
+      definition(c);
+    } catch (e) {
+      state.clients.delete(client);
+      throw e;
+    }
   },
   detach(client: number) {
     const c = state.clients.get(client);
@@ -264,3 +311,15 @@ const handlerFor = (c: Client, name: string) => {
     body?.();
   },
 };
+
+(globalThis as any).__nsx = Object.fromEntries(Object.entries(seam).map(([name, fn]) => [name, (client: number, ...rest: any[]) => {
+  const previous = state.current;
+  state.current = client;
+  state.depth++;
+  try {
+    return fn(client, ...rest);
+  } finally {
+    state.depth--;
+    state.current = previous;
+  }
+}]));

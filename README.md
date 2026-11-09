@@ -85,8 +85,9 @@ bun ../../scripts/nsx.mjs js .            # after an edit to native.ts: checked 
 |---|---|
 | `bridge/` | The C seam (`nsx.mm`), the JavaScript runtime (`runtime.ts`), and the Swift adapters for an app module and a package |
 | `scripts/nsx.mjs` | `check`, `js`, `build`, `package` |
+| `scripts/sessions-ios.mjs` | Two sessions of `apps/nslab` in Exact's sample host: apart, then one destroyed under the other |
 | `packages/local-search` | A package implemented in TypeScript |
-| `apps/nslab` | An app module in TypeScript: a call, a later, a native view, a hatch |
+| `apps/nslab` | An app module in TypeScript: a call, a later, a native view, a hatch, diagnostics |
 | `apps/mixed` | A Swift app module beside the TypeScript package |
 | `apps/ab-*` | The A/B's four apps, as the agents left them except the `declare` lines the checker now refuses; `ab-ns-1` and `ab-swift-1` are the device comparison |
 | `spike/` | The bridge on macOS outside any app, in its own VM and under Exact's hardening |

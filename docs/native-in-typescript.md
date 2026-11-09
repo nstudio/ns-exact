@@ -5,9 +5,9 @@ Objective-C API directly through NativeScript. Do not write Swift: `NSExactModul
 `NSExactTags.swift` and `NSExact.xcframework` are generated.
 
 ```ts
-import { defineModule, exact } from 'nativescript-exact';
+import { defineModule } from 'nativescript-exact';
 
-defineModule({
+defineModule((session) => ({           // made once per session; session is its clock and diagnostics
   call(request) {                     // native.call: cheap, synchronous, on main, inside the answer's 100 ms
     if (request.op === 'device') return { name: UIDevice.currentDevice.name };
     throw new Error('no such op');    // a refusal
@@ -25,7 +25,7 @@ defineModule({
   hatches: {                          // words in app.json "hatches"; node marked hatch="word"
     word: { element(el) { el.view.addSubview(x); }, ended(el) {} },
   },
-});
+}));
 ```
 
 `app.ts` asks the module as in the Swift recipe: `native.call({op})` and `await native.later({op})`, guarded by
@@ -53,13 +53,20 @@ defineModule({
   `agent ios --touch platform "tap slider drag 80 0 over 300"` (a tap on its track moves nothing).
 - **Events:** `events.message(text)` runs the node's `message=`; also `press()`, `change(v)`, `load()`, and
   `intrinsicSize(w, h)`, the natural size.
-- **Time:** `exact.after(ms, fn)` and `exact.frames(fn)`, never `NSTimer` or `CADisplayLink`, so `clock +N` moves
-  it. `exact.changed(topic)` re-asks answers that called `native.watch(topic)`.
+- **Sessions:** an app embedding Exact can run several sessions in one process, and each gets its own module from
+  the function `defineModule` takes, as each gets its own Swift module. Use its `session`, not the global `exact`,
+  which knows the session only inside a call from Exact or when only one is running: in a target-action or a
+  completion handler with two sessions it throws.
+- **Errors in native callbacks:** an error a target-action, delegate method or completion handler throws, outside
+  any call from JavaScript, aborts the app: NativeScript rethrows it as an Objective-C exception. Catch there, and
+  settle the `reply` or Promise with the failure.
+- **Time:** `session.after(ms, fn)` and `session.frames(fn)`, never `NSTimer` or `CADisplayLink`, so `clock +N` moves
+  it. `session.changed(topic)` re-asks answers that called `native.watch(topic)`.
 - **Hatches:** Exact owns the node's frame and paint, including `layer` borders and backgrounds. Add subviews,
   sublayers and gesture recognizers.
 - **Logs:** `console.log` shows in `bun exact.mjs agent ios logs`, and a thrown error names its line in
   `.nsx/ios-sim/native.bundle.js`.
-- **Diagnostics:** `exact.diagnostics.count(name, by?)`, `measure(name, ms)`, `begin(name).end()` and
+- **Diagnostics:** `session.diagnostics.count(name, by?)`, `measure(name, ms)`, `begin(name).end()` and
   `publish(name, value)`, as Swift's `context.diagnostics`. Counters and snapshots show in `agent ios state` under
   `hatches.scopes.module`, timings in `agent ios perf hatches`. Names are lowercase letters, digits, `-` and `.`.
 
@@ -100,4 +107,5 @@ and `apps/mixed` uses it beside a Swift module.
 - The app installs it like any package (`"@scope/name": "file:<path>"` in `package.json`, then `bun install`).
   `nsx.mjs check`, `js` and `build` find every NativeScript package the app uses, with Exact's own resolver, and
   check and bundle them with the app's `native.ts`, if it has one, into one VM.
-- A package has `exact.after`, but not `exact.frames`, hatches or diagnostics: Exact gives packages none of them.
+- `definePackage` takes a function of the session too. A package has `session.after`, but not `frames`, hatches or
+  diagnostics: Exact gives packages none of them.

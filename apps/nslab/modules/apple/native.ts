@@ -1,5 +1,4 @@
-import { defineModule, exact } from 'nativescript-exact';
-
+import { defineModule } from 'nativescript-exact';
 
 function target(handler: (sender: any) => void) {
   return ControlTarget.alloc().init().bind(handler);
@@ -13,7 +12,9 @@ const ControlTarget = NSObject.extend(
   { name: 'NSXControlTarget', exposedMethods: { fire: { returns: interop.types.void, params: [interop.types.id] } } },
 );
 
-defineModule({
+// A function of the session, so each embedded session gets its own module, as a Swift module's
+// `context` is its own; native callbacks then reach the right one.
+defineModule((session) => ({
   call(request) {
     if (request.op === 'device') {
       const device = UIDevice.currentDevice;
@@ -26,10 +27,10 @@ defineModule({
   later(request, reply) {
     if (request.op !== 'geocode') return reply.fail(`no later ${request.op}`);
     const search = MKGeocodingRequest.alloc().initWithAddressString(request.address);
-    const span = exact.diagnostics.begin('geocode'), started = Date.now();
+    const span = session.diagnostics.begin('geocode'), started = Date.now();
     search.getMapItemsWithCompletionHandler((items: any, error: any) => {
       span.end();
-      exact.diagnostics.measure('geocode.wall', Date.now() - started);
+      session.diagnostics.measure('geocode.wall', Date.now() - started);
       if (error) return reply.fail(error.localizedDescription);
       const item = items?.objectAtIndex(0) as MKMapItem;
       reply.send({ city: item?.addressRepresentations?.cityName ?? '', country: item?.addressRepresentations?.regionName ?? '' });
@@ -45,8 +46,8 @@ defineModule({
       slider.value = Number(props.level ?? 0);
       const moved = () => {
         const level = Math.round(slider.value);
-        exact.diagnostics.count('slider.change');
-        exact.diagnostics.publish('slider', { level });
+        session.diagnostics.count('slider.change');
+        session.diagnostics.publish('slider', { level });
         events.message(String(level));
       };
       const action = target(moved);
@@ -74,8 +75,8 @@ defineModule({
         bar.backgroundColor = UIColor.systemPinkColor;
         bar.autoresizingMask = UIViewAutoresizing.FlexibleHeight;
         el.view.addSubview(bar);
-        console.log(`card hatch ready at ${exact.now()}`);
+        console.log(`card hatch ready at ${session.now()}`);
       },
     },
   },
-});
+}));
