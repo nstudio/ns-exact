@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "mixed",
+      "dependencies": {
+        "@ns-exact/local-search": "file:../../packages/local-search",
+      },
+    },
+  },
+  "packages": {
+    "@ns-exact/local-search": ["@ns-exact/local-search@file:../../packages/local-search", {}],
+  }
+}

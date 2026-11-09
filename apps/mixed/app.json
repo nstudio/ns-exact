@@ -1,0 +1,29 @@
+{
+  "$schema": "../../vendor/exact/scripts/app.schema.json",
+  "name": "Mixed",
+  "short_name": "Mixed",
+  "id": "com.example.mixed-507363",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.example.mixed-507363",
+    "name": "Mixed"
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "minimumOS": "26.4",
+      "link": [
+        "-lc++",
+        "-licucore",
+        "-framework",
+        "CoreFoundation"
+      ]
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0"
+    }
+  }
+}

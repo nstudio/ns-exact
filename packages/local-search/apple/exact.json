@@ -1,0 +1,20 @@
+{
+  "kind": "implementation",
+  "implements": "@ns-exact/local-search@^0.1",
+  "platform": "apple",
+  "targets": ["ios"],
+  "shapes": {},
+  "options": {},
+  "names": [],
+  "views": ["ns-spinner"],
+  "hatches": [],
+  "sources": {
+    "swift": ["NSExactPackage.swift"]
+  },
+  "frameworks": {
+    "MapKit": { "ios": "17.0" },
+    "CoreLocation": { "ios": "17.0" }
+  },
+  "artifacts": [],
+  "class": "LocalSearchPackage"
+}

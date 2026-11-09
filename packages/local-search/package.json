@@ -1,0 +1,10 @@
+{
+  "name": "@ns-exact/local-search",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Points of interest near a place, through MapKit's local search, implemented in TypeScript with NativeScript.",
+  "exports": {
+    ".": "./exact.json",
+    "./apple": "./apple/exact.json"
+  }
+}

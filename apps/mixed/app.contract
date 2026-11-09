@@ -1,0 +1,36 @@
+// The app's own native module is Swift (modules/apple/Greeter.swift); local search is a
+// package implemented in TypeScript through NativeScript (packages/local-search).
+use searchNearby, localSearchStatus, PlaceResult, LocalSearchStatus from "@ns-exact/local-search"
+
+shape Hello
+  text: string
+
+component Mixed
+  resource hello = helloFromSwift() as shape Hello else empty()
+  resource status = localSearchStatus() as shape LocalSearchStatus else empty()
+  state query = "coffee"
+  mutation found as shape PlaceResult[]
+
+  action edit(value: string)
+    query = value
+  action search
+    send found = searchNearby(query=query, latitude=45.5231, longitude=-122.6765)
+
+  view
+    scroll height="100%" padding=20
+      column gap=12
+        text "Swift and NativeScript, side by side" role="heading" aria-level=1
+        text hello.text testId="swift"
+        text (status.available ? "Local search ready" : "Local search unavailable") testId="status"
+        row gap=8 align-items="center"
+          input value=query input=edit submit=search placeholder="What to find" aria-label="What to find" testId="query" flex=1 min-width=0
+          button press=search testId="search"
+            text "Search"
+          ns-spinner running=pending(found) width=24 height=24 aria-label="Searching" testId="spinner"
+        match found
+          case some(places)
+            text `${places.length} ${places.length == 1 ? "place" : "places"}` testId="count"
+            for p in places key=`${p.name}-${p.latitude}`
+              text `${p.name} · ${p.category} · ${p.distance} m` testId="place"
+          case none
+            text "No search yet" testId="count"

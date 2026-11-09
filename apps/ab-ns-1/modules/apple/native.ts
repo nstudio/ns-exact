@@ -1,10 +1,5 @@
 import { defineModule, exact } from 'nativescript-exact';
 
-declare const UIDevice: any, UIColor: any, UISlider: any, UIControlEvents: any, NSObject: any, interop: any;
-declare const MKGeocodingRequest: any, UIView: any, UIViewAutoresizing: any, CGRectMake: any;
-declare const UIScreen: any, UIDatePicker: any, UIDatePickerMode: any, UIDatePickerStyle: any;
-declare const UIImpactFeedbackGenerator: any, UIImpactFeedbackStyle: any;
-declare const NSDateFormatter: any, NSLocale: any, NSTimeZone: any;
 
 function target(handler: (sender: any) => void) {
   return ControlTarget.alloc().init().bind(handler);

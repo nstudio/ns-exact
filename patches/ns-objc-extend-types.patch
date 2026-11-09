@@ -1,0 +1,17 @@
+diff --git a/packages/objc-node-api/index.d.ts b/packages/objc-node-api/index.d.ts
+index fff83d9b..c4f77c4b 100644
+--- a/packages/objc-node-api/index.d.ts
++++ b/packages/objc-node-api/index.d.ts
+@@ -29,7 +29,11 @@ declare global {
+       this: This,
+       methods: Methods & ThisType<InstanceType<This> & Methods>,
+       options?: objc.ExtendOptions,
+-    ): This;
++    ): This & {
++      new (...args: any[]): InstanceType<This> & Methods;
++      alloc(): InstanceType<This> & Methods;
++      "new"(): InstanceType<This> & Methods;
++    };
+   }
+ 
+   namespace objc {

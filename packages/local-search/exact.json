@@ -1,0 +1,57 @@
+{
+  "kind": "interface",
+  "name": "@ns-exact/local-search",
+  "version": "0.1.0",
+  "grants": [],
+  "substitute": "implementation",
+  "shapes": {
+    "PlaceResult": {
+      "name": "string",
+      "category": "string",
+      "latitude": "number",
+      "longitude": "number",
+      "distance": "number"
+    },
+    "LocalSearchStatus": {
+      "available": "bool"
+    }
+  },
+  "views": {
+    "ns-spinner": {
+      "props": {
+        "running": "option<bool>"
+      },
+      "events": []
+    }
+  },
+  "names": [
+    {
+      "send": "searchNearby",
+      "permission": "none",
+      "options": {
+        "query": "string",
+        "latitude": "number",
+        "longitude": "number"
+      },
+      "answers": "PlaceResult[]",
+      "substitute": {
+        "unsupported": ["web", "linux", "windows", "terminal"],
+        "default": []
+      }
+    },
+    {
+      "source": "localSearchStatus",
+      "live": true,
+      "answers": "LocalSearchStatus",
+      "substitute": {
+        "default": { "available": true },
+        "targets": {
+          "web": { "available": false },
+          "linux": { "available": false },
+          "windows": { "available": false },
+          "terminal": { "available": false }
+        }
+      }
+    }
+  ]
+}

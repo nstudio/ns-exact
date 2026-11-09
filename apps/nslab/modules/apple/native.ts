@@ -1,7 +1,5 @@
 import { defineModule, exact } from 'nativescript-exact';
 
-declare const UIDevice: any, UIColor: any, UISlider: any, UIControlEvents: any, NSObject: any, interop: any;
-declare const MKGeocodingRequest: any, UIView: any, UIViewAutoresizing: any, CGRectMake: any;
 
 function target(handler: (sender: any) => void) {
   return ControlTarget.alloc().init().bind(handler);
@@ -30,7 +28,7 @@ defineModule({
     const search = MKGeocodingRequest.alloc().initWithAddressString(request.address);
     search.getMapItemsWithCompletionHandler((items: any, error: any) => {
       if (error) return reply.fail(error.localizedDescription);
-      const item = items?.objectAtIndex(0);
+      const item = items?.objectAtIndex(0) as MKMapItem;
       reply.send({ city: item?.addressRepresentations?.cityName ?? '', country: item?.addressRepresentations?.regionName ?? '' });
     });
   },
@@ -48,6 +46,12 @@ defineModule({
       return {
         view: slider,
         setProps(next) { if (!slider.tracking) slider.value = Number(next.level ?? 0); },
+        agentInput(input) {
+          const value = 'text' in input ? Number(input.text) : NaN;
+          if (!Number.isFinite(value)) throw new Error('the slider takes a number from 0 to 100');
+          slider.value = value;
+          events.message(String(Math.round(slider.value)));
+        },
         destroy() { slider.removeTargetActionForControlEvents(action, 'fire', UIControlEvents.ValueChanged); },
       };
     },

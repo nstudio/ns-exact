@@ -10,17 +10,17 @@ if [ ! -d $ROOT/vendor/exact/.git ]; then
   git -C $ROOT/vendor/exact checkout $EXACT_COMMIT
 fi
 (cd $ROOT/vendor/exact && bun scripts/exact.mjs setup)
-rustup target add aarch64-apple-ios-sim --toolchain 1.97.0
+rustup target add aarch64-apple-ios-sim aarch64-apple-ios --toolchain 1.97.0
 
 if [ ! -d $ROOT/vendor/ns-runtimes/.git ]; then
   git clone --filter=blob:none --no-checkout https://github.com/NativeScript/runtimes.git $ROOT/vendor/ns-runtimes
   git -C $ROOT/vendor/ns-runtimes fetch origin $RUNTIMES_COMMIT
   git -C $ROOT/vendor/ns-runtimes sparse-checkout init --no-cone
-  git -C $ROOT/vendor/ns-runtimes sparse-checkout set /NativeScript/ffi/objc/ /NativeScript/jsi/ \
+  git -C $ROOT/vendor/ns-runtimes sparse-checkout set /NativeScript/ffi/objc/ /NativeScript/jsi/ /packages/objc-node-api/ \
     /NativeScript/libffi/iphonesimulator-universal/ /NativeScript/libffi/iphoneos-arm64/ \
     /NativeScript/libffi/macosx-universal/ /metadata-generator/include/
   git -C $ROOT/vendor/ns-runtimes checkout $RUNTIMES_COMMIT
-  git -C $ROOT/vendor/ns-runtimes apply $ROOT/patches/ns-lean-globals.patch
+  git -C $ROOT/vendor/ns-runtimes apply $ROOT/patches/ns-lean-globals.patch $ROOT/patches/ns-objc-extend-types.patch
 fi
 
 # scripts/nsx.mjs takes the metadata generator and symbol analyzer from
