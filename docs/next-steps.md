@@ -68,6 +68,53 @@ two questions:
   its own lean VM (most of its 6 MB). Sharing it needs an Exact link flag, which goes against 8: ask only with
   numbers that make the case.
 
+## Ready to start
+
+Each step below ends with something to drive and check. Before any device or new-app build, check free disk
+(`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
+
+### 7a. Diagnostics
+
+- Expose `exact.diagnostics` in `bridge/runtime.ts`: `count(name, by)`, `measure(name, ms)`, `publish(name, value)`
+  and `begin(name)` returning `{ end() }`, matching `ExactDiagnostics` in
+  `vendor/exact/host/apple/modules/ExactNativeModule.swift` (`log` is already `console.log`).
+- One host function, `diag(client, kind, name, value)`, added to `NSXHost` and `nsx_attach_flat`. Packages have no
+  diagnostics (`ExactPackageContext` has only `log`), so the package adapter ignores it.
+- Check: in `apps/nslab`, a count in the slider's handler shows in `agent ios state` under `hatches`, and a measure in
+  `perf hatches`.
+
+### 7b. Teardown and several sessions
+
+- Run the sample host that embeds two sessions: `bun host/apple/build.mjs --ios --host`, driven by
+  `bun scripts/smoke.mjs host-ios` and `scripts/agent.mjs host-ios --session a|b` (`vendor/exact/AGENTS.md`). The
+  host embeds two sessions of the plan of the app it is built for. First check it builds from an app outside
+  Exact's repo, `EXACT_APP_DIR=../../apps/nslab bun host/apple/build.mjs --ios --host nslab-apple`; unverified.
+- Expected: both sessions attach as clients of the one VM, and each client's views, timers and replies stay its own.
+  Verify by driving both sessions and ending one: the other keeps answering.
+- `nsx_detach` destroys a client's views and drops its state; the VM itself is never freed (the bridge caches JSI
+  values it does not release). Measure what a session's end leaves behind with the startup log's footprint method.
+
+### 2. The demo
+
+- A package, `@ns-exact/haptic-pattern`: a send `playPattern(intensity, sharpness, count, gap)` built from
+  `CHHapticEngine`, `CHHapticPattern`, `CHHapticEvent` and `CHHapticEventParameter` (all verified in the SDK index),
+  and a source `hapticsStatus` from `CHHapticEngine.capabilitiesForHardware().supportsHaptics`. No Exact package plays
+  a custom pattern; `playHaptic` plays the system's feedback generators.
+- Risk to check first: these APIs return errors through `NSError **` out-parameters (`interop.PointerConvertible` in
+  the typings). Pass `null`, or an `interop.Reference`, and confirm the bridge accepts both on the device.
+- The simulator has no haptic hardware, so `hapticsStatus` answers `false` there; the demo runs on the iPhone.
+- Record it: one prompt to an agent, the package written and played on the phone, then live tuning, an edit to
+  `apple/native.ts`, pushed with `nsx.mjs js`. On a device that needs a way to reach the new bytecode: the development
+  path is a Mac path the phone cannot read. Options: serve it from Exact's dev server (`bun exact.mjs ios --device
+  --url`), or have the adapter fetch it from a local HTTP server `nsx.mjs js --serve` runs.
+
+### 6, the open questions
+
+- **Memory:** profile the bridge step with Instruments' Allocations on the simulator, split into Hermes heap and
+  bridge caches, before changing anything.
+- **The second Hermes:** measure how much of the stripped 6 MB module is Hermes (link map, `-Wl,-map`) so a request to
+  Exact for an exported VM comes with a number.
+
 ## More compelling
 
 ### 1. Add a native-API checker
