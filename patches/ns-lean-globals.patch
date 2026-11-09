@@ -1,0 +1,17 @@
+diff --git a/NativeScript/ffi/objc/shared/bridge/Install.mm b/NativeScript/ffi/objc/shared/bridge/Install.mm
+index 6623f849..68978621 100644
+--- a/NativeScript/ffi/objc/shared/bridge/Install.mm
++++ b/NativeScript/ffi/objc/shared/bridge/Install.mm
+@@ -2133,8 +2133,10 @@ function resolveNativeApiEnum(enumName) {
+   script += "(";
+   script += jsStringLiteral(globalName);
+   script += ");";
+-  runtime.evaluateJavaScript(std::make_shared<StringBuffer>(std::move(script)),
+-                             "NativeApiGlobals.js");
++  // A lean VM takes no source; NSXEvalGlobals runs the installer's bytecode.
++  extern void NSXEvalGlobals(Runtime&);
++  (void)script;
++  NSXEvalGlobals(runtime);
+   NativeApiWriteSmokeStage("engine:globals:after-eval");
+ }
+ 

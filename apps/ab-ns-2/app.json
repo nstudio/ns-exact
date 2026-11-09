@@ -1,0 +1,42 @@
+{
+  "$schema": "../../vendor/exact/scripts/app.schema.json",
+  "name": "Nslab",
+  "short_name": "Nslab",
+  "id": "com.example.nslab-1af2db",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.example.nslab-1af2db",
+    "name": "Nslab"
+  },
+  "modules": [
+    "ns-slider",
+    "date-field"
+  ],
+  "hatches": {
+    "card": [
+      "ios"
+    ]
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "link": [
+        "-lc++",
+        "-licucore",
+        "-framework",
+        "CoreFoundation",
+        "-framework",
+        "MapKit",
+        "-framework",
+        "CoreLocation"
+      ],
+      "minimumOS": "26.4"
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0"
+    }
+  }
+}

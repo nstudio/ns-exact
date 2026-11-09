@@ -1,0 +1,54 @@
+// Nslab: every native capability on this screen is implemented in TypeScript
+// through NativeScript, in modules/apple/native.ts.
+shape Device
+  name: string
+  system: string
+  battery: number
+
+shape Place
+  city: string
+  country: string
+
+shape Brightness
+  percent: number
+
+shape Buzz
+  count: number
+
+component Nslab
+  resource device = deviceInfo() as shape Device else empty()
+  resource place = placeFor(query) as shape Place else empty()
+  resource brightness = screenBrightness() as shape Brightness else empty()
+  mutation buzzed as shape Buzz queue
+  derive buzzes = match buzzed { case some(b) => b.count, case none => 0 }
+  state level = "50"
+  state query = "Portland"
+  state date = "2026-03-14"
+  state picked = ""
+
+  action moved(value: string)
+    level = value
+  action edit(value: string)
+    query = value
+  action datePicked(value: string)
+    date = value
+    picked = value
+  action buzz
+    send buzzed = playBuzz()
+
+  view
+    scroll height="100%" padding=20
+      column gap=16 hatch="card" padding=20 testId="card"
+        text "NativeScript in Exact" role="heading" aria-level=1
+        text device.name testId="device-name"
+        text device.system testId="device-system"
+        text `Slider: ${level}` testId="level"
+        ns-slider level=level message=moved height=44 aria-label="Level" testId="slider"
+        input value=query input=edit placeholder="Address" aria-label="Address" testId="query"
+        text `${place.city} ${place.country}` testId="place"
+        text `Brightness: ${brightness.percent}%` testId="brightness"
+        date-field date=date message=datePicked align-self="flex-start" aria-label="Date" testId="date-field"
+        text `Picked: ${picked}` testId="picked"
+        button press=buzz testId="buzz"
+          text "Buzz"
+        text `Buzzes: ${buzzes}` testId="buzzes"

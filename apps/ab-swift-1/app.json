@@ -1,0 +1,32 @@
+{
+  "$schema": "../../vendor/exact/scripts/app.schema.json",
+  "name": "Ab Swift 1",
+  "short_name": "Ab Swift 1",
+  "id": "com.example.ab-swift-1-cfa493",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.example.ab-swift-1-cfa493",
+    "name": "Ab Swift 1"
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "minimumOS": "26.4"
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0"
+    }
+  },
+  "modules": [
+    "ns-slider",
+    "date-field"
+  ],
+  "hatches": {
+    "card": [
+      "ios"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+/vendor/
+/.gen/
+.DS_Store
+target/
+.nsx/
+.shots/
+.exact/
+node_modules/
+app.contract.d.ts
+apps/*/modules/apple/NSExact.xcframework/
+apps/*/modules/apple/NSExactModule.swift
+apps/*/modules/apple/NSExactTags.swift

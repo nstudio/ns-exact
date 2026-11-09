@@ -1,0 +1,32 @@
+// Nslab: every native capability on this screen is implemented in TypeScript
+// through NativeScript, in modules/apple/native.ts.
+shape Device
+  name: string
+  system: string
+  battery: number
+
+shape Place
+  city: string
+  country: string
+
+component Nslab
+  resource device = deviceInfo() as shape Device else empty()
+  resource place = placeFor(query) as shape Place else empty()
+  state level = "50"
+  state query = "Portland"
+
+  action moved(value: string)
+    level = value
+  action edit(value: string)
+    query = value
+
+  view
+    scroll height="100%" padding=20
+      column gap=16 hatch="card" padding=20 testId="card"
+        text "NativeScript in Exact" role="heading" aria-level=1
+        text device.name testId="device-name"
+        text device.system testId="device-system"
+        text `Slider: ${level}` testId="level"
+        ns-slider level=level message=moved height=44 aria-label="Level" testId="slider"
+        input value=query input=edit placeholder="Address" aria-label="Address" testId="query"
+        text `${place.city} ${place.country}` testId="place"
