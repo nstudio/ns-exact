@@ -26,7 +26,10 @@ defineModule({
   later(request, reply) {
     if (request.op !== 'geocode') return reply.fail(`no later ${request.op}`);
     const search = MKGeocodingRequest.alloc().initWithAddressString(request.address);
+    const span = exact.diagnostics.begin('geocode'), started = Date.now();
     search.getMapItemsWithCompletionHandler((items: any, error: any) => {
+      span.end();
+      exact.diagnostics.measure('geocode.wall', Date.now() - started);
       if (error) return reply.fail(error.localizedDescription);
       const item = items?.objectAtIndex(0) as MKMapItem;
       reply.send({ city: item?.addressRepresentations?.cityName ?? '', country: item?.addressRepresentations?.regionName ?? '' });
@@ -40,7 +43,13 @@ defineModule({
       slider.maximumValue = 100;
       slider.minimumTrackTintColor = UIColor.systemPinkColor;
       slider.value = Number(props.level ?? 0);
-      const action = target((s) => events.message(String(Math.round(s.value))));
+      const moved = () => {
+        const level = Math.round(slider.value);
+        exact.diagnostics.count('slider.change');
+        exact.diagnostics.publish('slider', { level });
+        events.message(String(level));
+      };
+      const action = target(moved);
       slider.addTargetActionForControlEvents(action, 'fire', UIControlEvents.ValueChanged);
       events.intrinsicSize(240, 44);
       return {
@@ -50,7 +59,7 @@ defineModule({
           const value = 'text' in input ? Number(input.text) : NaN;
           if (!Number.isFinite(value)) throw new Error('the slider takes a number from 0 to 100');
           slider.value = value;
-          events.message(String(Math.round(slider.value)));
+          moved();
         },
         destroy() { slider.removeTargetActionForControlEvents(action, 'fire', UIControlEvents.ValueChanged); },
       };

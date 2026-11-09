@@ -49,7 +49,8 @@ defineModule({
   work goes into a Promise that a native completion handler settles.
 - **Agent input:** a view's `agentInput(input)` takes the driver's `type`: `{text}` replaces its value, `{key,
   phase}` presses a key; throw before changing anything to refuse. Exact's iOS driver does not send `type` to
-  native views yet (the Mac's does), so on iOS drive a native view with `--touch platform`.
+  native views yet (the Mac's does), so on iOS drive a native view with `--touch platform`: for a slider,
+  `agent ios --touch platform "tap slider drag 80 0 over 300"` (a tap on its track moves nothing).
 - **Events:** `events.message(text)` runs the node's `message=`; also `press()`, `change(v)`, `load()`, and
   `intrinsicSize(w, h)`, the natural size.
 - **Time:** `exact.after(ms, fn)` and `exact.frames(fn)`, never `NSTimer` or `CADisplayLink`, so `clock +N` moves
@@ -58,6 +59,9 @@ defineModule({
   sublayers and gesture recognizers.
 - **Logs:** `console.log` shows in `bun exact.mjs agent ios logs`, and a thrown error names its line in
   `.nsx/ios-sim/native.bundle.js`.
+- **Diagnostics:** `exact.diagnostics.count(name, by?)`, `measure(name, ms)`, `begin(name).end()` and
+  `publish(name, value)`, as Swift's `context.diagnostics`. Counters and snapshots show in `agent ios state` under
+  `hatches.scopes.module`, timings in `agent ios perf hatches`. Names are lowercase letters, digits, `-` and `.`.
 
 ## The loop
 
@@ -96,4 +100,4 @@ and `apps/mixed` uses it beside a Swift module.
 - The app installs it like any package (`"@scope/name": "file:<path>"` in `package.json`, then `bun install`).
   `nsx.mjs check`, `js` and `build` find every NativeScript package the app uses, with Exact's own resolver, and
   check and bundle them with the app's `native.ts`, if it has one, into one VM.
-- A package has `exact.after`, but not `exact.frames` or hatches: Exact gives packages no frame clock and no hatches.
+- A package has `exact.after`, but not `exact.frames`, hatches or diagnostics: Exact gives packages none of them.

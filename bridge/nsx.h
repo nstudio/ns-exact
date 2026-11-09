@@ -21,6 +21,9 @@ typedef void (*NSXCancelFn)(void *ctx, uint64_t token);
 typedef void (*NSXReplyFn)(void *ctx, uint64_t token, int status, const char *body);
 typedef void (*NSXEventFn)(void *ctx, uint64_t view, uint32_t kind, const char *text);
 typedef void (*NSXActFn)(void *ctx, uint64_t element, const char *action, const char *text);
+// kind is ExactDiagnostics' record kind: 1 count (value: by), 2 measure (value: ms), 3 begin
+// (returns the span's token), 4 end (value: that token), 5 publish (text: the value as JSON).
+typedef uint64_t (*NSXDiagFn)(void *ctx, uint32_t kind, const char *name, double value, const char *text);
 
 typedef struct NSXHost {
   void *ctx;
@@ -33,6 +36,8 @@ typedef struct NSXHost {
   NSXReplyFn reply;
   NSXEventFn event;
   NSXActFn act;
+  // Null where the host keeps no diagnostics, as for a package.
+  NSXDiagFn diag;
 } NSXHost;
 
 // `module` is "app" for the app's own module, or a package's name. Returns 0 with

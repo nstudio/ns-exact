@@ -70,6 +70,7 @@ declare const __nsxHost: {
   reply(client: number, token: number, status: number, body: string): void;
   event(client: number, view: number, kind: number, text: string): void;
   act(client: number, element: number, action: string, text: string): void;
+  diag(client: number, kind: number, name: string, value: number, text: string): number;
 };
 
 declare global {
@@ -108,6 +109,22 @@ export const exact = {
     state.clients.get(client)?.waits.set(token, body);
     host.after(client, token, ms);
     return { stop() { if (state.clients.get(client)?.waits.delete(token)) host.cancelAfter(client, token); } };
+  },
+  /**
+   * What the module says of itself, as Swift's `context.diagnostics`: `agent state` shows counters
+   * and snapshots under `hatches`, `perf hatches` the timings. Development builds only; a package's
+   * calls keep nothing. Names are lowercase letters, digits, `-` and `.`.
+   */
+  diagnostics: {
+    count: (name: string, by = 1) => { host.diag(state.current, 1, name, by, ''); },
+    measure: (name: string, ms: number) => { host.diag(state.current, 2, name, ms, ''); },
+    /** A span on the session clock; `end()` once closes it. */
+    begin(name: string) {
+      const client = state.current, token = host.diag(client, 3, name, 0, '');
+      return { end() { if (token) host.diag(client, 4, '', token, ''); } };
+    },
+    /** The latest snapshot is kept; one over 4 KB of JSON is refused. */
+    publish: (name: string, value: Json) => { host.diag(state.current, 5, name, 0, JSON.stringify(value) ?? 'null'); },
   },
 };
 

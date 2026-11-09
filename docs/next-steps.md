@@ -55,10 +55,14 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
   with a `TimeoutError` and the app went on answering. Native views take the driver's agent input
   (`agentInput`), but Exact's iOS driver sends `type` only to its own fields, so it is untested there. The
   xcframework keeps a slice per target, so phone and simulator builds alternate without rebuilding.
+  `exact.diagnostics` (`count`, `measure`, `begin`/`end`, `publish`) reaches the module's
+  `context.diagnostics` through one host callback, `diag`; in `apps/nslab` a dragged slider's counter and snapshot
+  showed in `agent ios state` and the geocode's span and measure in `perf hatches`. Packages get none, as Exact
+  gives them none.
 
 ## Suggested order
 
-Next: the rest of 7 (diagnostics, teardown, several sessions), then 2, the demo, now that a phone runs it. 6 leaves
+Next: the rest of 7 (teardown, several sessions), then 2, the demo, now that a phone runs it. 6 leaves
 two questions:
 
 - **The remaining ~19 MB.** After the fixes above, the bridge step still adds 5 to 12 MB (the figures are noisy:
@@ -72,16 +76,6 @@ two questions:
 
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
-
-### 7a. Diagnostics
-
-- Expose `exact.diagnostics` in `bridge/runtime.ts`: `count(name, by)`, `measure(name, ms)`, `publish(name, value)`
-  and `begin(name)` returning `{ end() }`, matching `ExactDiagnostics` in
-  `vendor/exact/host/apple/modules/ExactNativeModule.swift` (`log` is already `console.log`).
-- One host function, `diag(client, kind, name, value)`, added to `NSXHost` and `nsx_attach_flat`. Packages have no
-  diagnostics (`ExactPackageContext` has only `log`), so the package adapter ignores it.
-- Check: in `apps/nslab`, a count in the slider's handler shows in `agent ios state` under `hatches`, and a measure in
-  `perf hatches`.
 
 ### 7b. Teardown and several sessions
 

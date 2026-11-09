@@ -194,6 +194,12 @@ void installHost() {
     h.act(h.ctx, number(a[1]), text(r, a[2]).c_str(), text(r, a[3]).c_str());
     return jsi::Value::undefined();
   });
+  hostFn(rt, host, "diag", [](jsi::Runtime &r, const NSXHost &h, const jsi::Value *a) {
+    if (!h.diag) return jsi::Value(0);
+    uint64_t token = h.diag(h.ctx, static_cast<uint32_t>(a[1].getNumber()), text(r, a[2]).c_str(),
+                            a[3].isNumber() ? a[3].getNumber() : 0, text(r, a[4]).c_str());
+    return jsi::Value(static_cast<double>(token));
+  });
   rt.global().setProperty(rt, "__nsxHost", host);
 }
 
@@ -304,7 +310,7 @@ uint64_t nsx_attach(const char *module, const NSXHost *host, char **error) {
 uint64_t nsx_attach_flat(const char *module, void *ctx, NSXLogFn log, NSXTopicFn changed, NSXNowFn now,
                          NSXFramesFn frames, NSXAfterFn after, NSXCancelFn cancel_after, NSXReplyFn reply,
                          NSXEventFn event, NSXActFn act, char **error) {
-  NSXHost host{ctx, log, changed, now, frames, after, cancel_after, reply, event, act};
+  NSXHost host{ctx, log, changed, now, frames, after, cancel_after, reply, event, act, nullptr};
   return nsx_attach(module, &host, error);
 }
 

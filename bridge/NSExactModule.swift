@@ -33,6 +33,7 @@ final class NSExactModule: ExactModule {
     fileprivate var events: [UInt64: ExactNativeEvents] = [:]
     fileprivate var elements: [UInt64: ExactElement] = [:]
     private var tickets: [UInt64: ExactTicket] = [:]
+    private var spans: [UInt64: ExactSpan] = [:]
     private var elementTokens: [ObjectIdentifier: UInt64] = [:]
     private var nextToken: UInt64 = 1
     private var watcher: DispatchSourceTimer?
@@ -50,7 +51,8 @@ final class NSExactModule: ExactModule {
             cancel_after: { ctx, token in NSExactModule.from(ctx).tickets.removeValue(forKey: token)?.stop() },
             reply: { ctx, token, status, body in NSExactModule.from(ctx).reply(token, status, String(cString: body!)) },
             event: { ctx, view, kind, text in NSExactModule.from(ctx).events[view]?.send(kind, String(cString: text!)) },
-            act: { ctx, element, action, text in NSExactModule.from(ctx).act(element, String(cString: action!), String(cString: text!)) })
+            act: { ctx, element, action, text in NSExactModule.from(ctx).act(element, String(cString: action!), String(cString: text!)) },
+            diag: { ctx, kind, name, value, text in NSExactModule.from(ctx).diag(kind, String(cString: name!), value, String(cString: text!)) })
         var error: UnsafeMutablePointer<CChar>?
         client = nsx_attach("app", &host, &error)
         if client == 0 {
@@ -111,6 +113,22 @@ final class NSExactModule: ExactModule {
         if let object = value as? [String: Any] { reply.send(object) } else { reply.send(["exact:answer": value]) }
     }
 
+    private func diag(_ kind: UInt32, _ name: String, _ value: Double, _ text: String) -> UInt64 {
+        let diagnostics = context.diagnostics
+        switch kind {
+        case 1: diagnostics.count(name, by: Int(value))
+        case 2: diagnostics.measure(name, ms: value)
+        case 3:
+            let id = token()
+            spans[id] = diagnostics.begin(name)
+            return id
+        case 4: spans.removeValue(forKey: UInt64(value))?.end()
+        case 5: diagnostics.publish(name, (try? JSONSerialization.jsonObject(with: Data(text.utf8), options: .fragmentsAllowed)) ?? NSNull())
+        default: write("unknown diagnostics kind \(kind)")
+        }
+        return 0
+    }
+
     private func act(_ token: UInt64, _ action: String, _ text: String) {
         guard let element = elements[token] else { return }
         switch action {
@@ -165,6 +183,7 @@ final class NSExactModule: ExactModule {
         watcher?.cancel()
         tickets.values.forEach { $0.stop() }
         tickets.removeAll()
+        spans.removeAll()
         nsx_detach(client)
         client = 0
     }
