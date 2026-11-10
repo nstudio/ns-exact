@@ -46,10 +46,12 @@ defineModule((session) => ({           // made once per session; session is its 
   targets weakly. `class X extends NSObject` does not work. Blocks are plain functions.
 - **The 100 ms budget:** every entry into `native.ts` runs on the main thread and is stopped after 100 ms. A
   `call` then refuses and a `later` fails, with `TimeoutError: native.ts ran longer than 100 ms…` in `logs`. Long
-  work goes into a Promise that a native completion handler settles.
+  work goes into a Promise that a native completion handler settles. Hermes cannot stop a single native call
+  that blocks (`NSProcessInfo.hostName` resolves the host's name on the network): the entry then finishes, and
+  `logs` says `native.ts ran N ms, over its 100 ms budget, in native calls Hermes cannot stop`.
 - **Agent input:** a view's `agentInput(input)` takes the driver's `type`: `{text}` replaces its value, `{key,
-  phase}` presses a key; throw before changing anything to refuse. Exact's iOS driver does not send `type` to
-  native views yet (the Mac's does), so on iOS drive a native view with `--touch platform`: for a slider,
+  phase}` presses a key; throw before changing anything to refuse. On the Mac, `agent macos "type slider 80"` reaches
+  it. Exact's iOS driver does not send `type` to native views yet, so on iOS drive a native view with `--touch platform`: for a slider,
   `agent ios --touch platform "tap slider drag 80 0 over 300"` (a tap on its track moves nothing).
 - **Events:** `events.message(text)` runs the node's `message=`; also `press()`, `change(v)`, `load()`, and
   `intrinsicSize(w, h)`, the natural size.
@@ -83,6 +85,13 @@ defineModule((session) => ({           // made once per session; session is its 
 - A new view tag in `app.json`, a new hatch word or a new framework needs
   `bun ../../scripts/nsx.mjs build . && bun exact.mjs ios` (about 20 s). A framework the app did not link goes in
   `app.json` `host.ios.link`, as `"-framework", "Name"`.
+
+## On the Mac
+
+The same `modules/apple/native.ts`, written against AppKit, with `--target macos` on `check`, `js` and `build`,
+then `bun exact.mjs mac`. `apps/nsmac` is a whole one: a call, a later and an `NSSlider` view. An app whose module
+runs on both iOS and macOS cannot type-check one file against UIKit and AppKit at once, so for now it is one
+platform's. The app's `host.macos.minimumOS` must be 26.0 or later: the bundled libffi is built for it.
 
 ## A package in TypeScript
 

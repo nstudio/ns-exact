@@ -94,11 +94,13 @@ const modules = [...(existsSync(ownModule) ? [{ name: 'app', file: ownModule }] 
 if (!modules.length) throw new Error(`${app} has no modules/apple/native.ts and uses no NativeScript package`);
 for (const m of modules) if (!existsSync(m.file)) throw new Error(`${m.name}: ${m.file} does not exist`);
 
-// Typings for the whole SDK, made once per SDK version. The generator writes parameters named
-// with reserved words (`in`) and nameless struct fields, which TypeScript cannot parse.
+// Typings for the whole SDK, made once per SDK version. The generator writes parameters and functions
+// named with reserved words (`in`, `delete`), nameless struct fields, and C left in field types
+// (`Foo::(unnamed at …)`, `volatile struct X`), which TypeScript cannot parse. Bump the directory's
+// suffix when these fixes change.
 function sdkTypings() {
   const version = run('xcrun', ['--sdk', target.sdk, '--show-sdk-version']);
-  const dir = resolve(root, '.gen/types', `${targetName}-${version}`);
+  const dir = resolve(root, '.gen/types', `${targetName}-${version}-3`);
   if (existsSync(resolve(dir, 'index.d.ts'))) return dir;
   const tools = process.env.NSX_METADATA_TOOLS ?? resolve(root, '../ns-bevy/rt/metadata-tools');
   const staging = `${dir}.tmp`;
@@ -111,7 +113,8 @@ function sdkTypings() {
   const param = new RegExp(`([(,] ?)(${reserved})(\\??: )`, 'g');
   for (const f of readdirSync(staging).filter((f) => f.endsWith('.d.ts'))) {
     const text = readFileSync(resolve(staging, f), 'utf8');
-    const fixed = text.replace(param, '$1$2_$3').replace(/^\s*: [^;\n]+;\n/gm, '');
+    const fixed = text.replace(param, '$1$2_$3').replace(/^\s*: [^;\n]+;\n/gm, '').replace(/interop\.Enum<typeof [\w:]+\(unnamed at [^)]*\)>/g, 'number')
+      .replace(/: (?:volatile |const )+(?:struct )?(\w+);/g, ': $1;').replace(new RegExp(`^declare function (?:${reserved})\\(.*\n`, 'gm'), '');
     if (fixed !== text) writeFileSync(resolve(staging, f), fixed);
   }
   rmSync(dir, { recursive: true, force: true });

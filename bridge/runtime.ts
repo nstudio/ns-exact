@@ -323,3 +323,6 @@ const seam: Record<string, (client: number, ...rest: any[]) => unknown> = {
     state.current = previous;
   }
 }]));
+// A deadline that passes inside a native call leaves Hermes' timeout pending until bytecode next
+// checks for it, at any function's entry: the seam enters this one to raise it on the entry that overran.
+(globalThis as any).__nsx.breakCheck = () => {};

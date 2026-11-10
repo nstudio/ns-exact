@@ -210,6 +210,9 @@ final class NSExactView: ExactNativeInstance {
 
     override var view: ExactNativeView { native }
 
+    // The Mac driver delivers `type` only to a view that names a focus target.
+    override var focusTarget: ExactNativeView? { native }
+
     override func setProps(_ props: [String: String]) throws {
         guard module.client != 0 else { return }
         nsx_view_set_props(module.client, id, jsonText(props))

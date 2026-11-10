@@ -1,0 +1,27 @@
+// Nsmac: the macOS module in TypeScript, in modules/apple/native.ts, on the host's Hermes.
+shape Host
+  name: string
+  system: string
+  memory: number
+
+shape Later
+  after: number
+
+component Nsmac
+  resource host = hostInfo() as shape Host else empty()
+  resource later = laterInfo() as shape Later else empty()
+  state level = "50"
+
+  action moved(value: string)
+    level = value
+
+  view
+    scroll height="100%" padding=20
+      column gap=16 testId="card"
+        text "NativeScript in Exact on the Mac" role="heading" aria-level=1
+        text host.name testId="host-name"
+        text host.system testId="host-system"
+        text `${host.memory} GB` testId="host-memory"
+        text `Later after ${later.after} ms` testId="later"
+        text `Slider: ${level}` testId="level"
+        ns-slider level=level message=moved height=28 aria-label="Level" testId="slider"

@@ -1,0 +1,45 @@
+{
+  "$schema": "../../vendor/exact/scripts/app.schema.json",
+  "name": "Nsmac",
+  "short_name": "Nsmac",
+  "id": "com.example.nsmac-8fda59",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.example.nsmac-8fda59",
+    "name": "Nsmac"
+  },
+  "host": {
+    "web": {},
+    "macos": {
+      "minimumOS": "26.0",
+      "window": {
+        "width": 900,
+        "height": 700
+      },
+      "link": [
+        "-lc++",
+        "-licucore",
+        "-framework",
+        "CoreFoundation",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZN6hermes2vm15NopCrashManagerD1Ev",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZTVN6hermes2vm15NopCrashManagerE"
+      ]
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "macos": "0"
+    }
+  },
+  "modules": [
+    "ns-slider"
+  ]
+}

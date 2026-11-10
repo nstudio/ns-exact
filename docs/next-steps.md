@@ -98,9 +98,8 @@ Next: record the demo (above), then 6's two questions, now measured:
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
-- **One Hermes per process, on the phone:** done on the simulator (`docs/shared-hermes.md`); run nslab, the haptic
-  pattern and `js --serve` on the iPhone. Step 3 is done (Exact's pins read, not copied); then step 4, macOS and
-  Android. `nsx.mjs check . --target macos` fails today in the generated `Tk.d.ts`, before any Hermes question.
+- **One Hermes per process on Android:** done on iOS (simulator and phone) and macOS (`docs/shared-hermes.md`).
+  Android is step 4's last part.
 - **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
 - **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
   `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.

@@ -19,7 +19,11 @@ shared, never Exact's hardened `app.ts` runtime.
 - Verified on the iOS Simulator, development and release builds: nslab's call, later, view, hatch, diagnostics and
   haptic package; `scripts/sessions-ios.mjs`; the watchdog stopping an infinite loop with a `TimeoutError`; a
   `throw` in `native.ts` reaching Swift with its message and stack. The link map of the phone's dylib lost 1.91 MB
-  of Hermes and JSI symbols (9.97 to 8.06 MB); with JSI back, about 1.86 MB. Not yet run on the phone.
+  of Hermes and JSI symbols (9.97 to 8.06 MB); with JSI back, about 1.86 MB.
+- On the iPhone 16 Pro (iOS 26.6.2), development build: the haptic pattern played (4 taps over 270 ms), and an edit
+  to the package's `native.ts` under `js --serve` played 5 taps without a relaunch (rebuilt in 384 ms; the drive saw
+  the reload 4.1 s after the edit, most of it the agent reading the phone's logs). Startup: `vm +0.6 MB 1.7 ms,
+  bridge +54.7 MB 82.9 ms`.
 - What two JSI copies cost: Hermes and the bridge each catch `jsi::JSError` by their own `type_info`. An error
   Hermes throws reaches the seam as a `std::exception`, whose `what()` keeps the message and stack. An error the
   bridge throws reaches JavaScript as a plain `Error` with the prefix "Exception in HostFunction:", its message
@@ -31,6 +35,12 @@ shared, never Exact's hardened `app.ts` runtime.
   `HERMES_LEAN_SYS_DIR[_<triple>]` and `CARGO_HOME`, and takes the headers, `libjsi.a` and `hermesc` from that bundle.
   It refuses a missing bundle by tag, triple and path, and a compiler and target bundle whose receipts differ in
   Hermes commit or bytecode version.
+- macOS: `apps/nsmac` runs a call, a later and an `NSSlider` view on Exact's Hermes, in development and release
+  builds. The Mac's executable exports the same three symbols in both. Release startup: `vm +0.6 MB 1.3 ms, bridge
+  +1.8 MB 2.6 ms, modules +2.0 MB 4.3 ms`.
+- Windows and Linux: Exact's Hermes bundles carry no Node-API (no `napi_*` or `jsr_*` symbol in `libhermesvm*.a`,
+  no `js_native_api.h`), which NativeScript's Windows backend binds through. Those hosts need Exact's Hermes built
+  with Node-API, or a JSI build of that backend.
 - No own-Hermes fallback: every Exact host links Hermes for `app.ts`, and one that stops exporting it is refused at
   start by name. Linking a second copy back would be apparatus kept for a host that does not exist.
 
@@ -90,7 +100,7 @@ Exact's host is in the same position as that `hermes.dll`:
   with a host that does, or ask nsx.mjs to link its own".
 - Decide then whether to keep an own-Hermes build as a fallback, or remove it as apparatus.
 
-### 4. The other platforms
+### 4. The other platforms (macOS done)
 
 - **macOS:** the same as iOS. Check the macOS host's exports; take the macOS metadata fixes from NativeScript/runtimes#104
   and #105 when the pin moves.

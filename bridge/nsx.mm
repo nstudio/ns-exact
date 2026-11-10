@@ -9,6 +9,7 @@
 #include <malloc/malloc.h>
 #include <sys/stat.h>
 
+#include <chrono>
 #include <fstream>
 #include <map>
 #include <memory>
@@ -114,6 +115,8 @@ void report(const std::string &message) {
 
 constexpr uint32_t kTurnBudgetMs = 100;
 
+jsi::Object seam();
+
 // Hermes raises its timeout as an error no JavaScript can catch; say what stopped it.
 std::string explained(const std::string &message) {
   if (message.find("timed out") == std::string::npos) return message;
@@ -127,6 +130,7 @@ bool guarded(uint64_t client, char **error, Fn &&fn) {
   vm->current = client;
   bool ok = false;
   if (!outer) vm->rt->watchTimeLimit(kTurnBudgetMs);
+  auto started = std::chrono::steady_clock::now();
   try {
     fn();
     ok = true;
@@ -137,7 +141,18 @@ bool guarded(uint64_t client, char **error, Fn &&fn) {
     std::string message = explained(e.what());
     if (error) *error = dupString(message); else report(message);
   }
-  if (!outer) vm->rt->unwatchTimeLimit();
+  if (!outer) {
+    vm->rt->unwatchTimeLimit();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+    if (ms >= kTurnBudgetMs) {
+      try {
+        seam().getPropertyAsFunction(*vm->rt, "breakCheck").call(*vm->rt);
+      } catch (const std::exception &) {
+      }
+      if (ok) report("native.ts ran " + std::to_string(ms) + " ms, over its " + std::to_string(kTurnBudgetMs) +
+                     " ms budget, in native calls Hermes cannot stop");
+    }
+  }
   try {
     vm->rt->drainMicrotasks();
   } catch (const std::exception &e) {
