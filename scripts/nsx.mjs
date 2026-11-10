@@ -33,7 +33,7 @@ const targetName = rest[rest.indexOf('--target') + 1] && rest.includes('--target
 const dev = !rest.includes('--release');
 
 const targets = {
-  'ios-sim': { sdk: 'iphonesimulator', triple: 'arm64-apple-ios17.0-simulator', hermes: 'universal-apple-ios-simulator', libffi: 'iphonesimulator-universal', id: 'ios-arm64-simulator', platform: 'ios', variant: 'simulator' },
+  'ios-sim': { sdk: 'iphonesimulator', triple: 'arm64-apple-ios17.0-simulator', hermes: 'aarch64-apple-ios-sim', libffi: 'iphonesimulator-universal', id: 'ios-arm64-simulator', platform: 'ios', variant: 'simulator' },
   ios: { sdk: 'iphoneos', triple: 'arm64-apple-ios17.0', hermes: 'aarch64-apple-ios', libffi: 'iphoneos-arm64', id: 'ios-arm64', platform: 'ios' },
   macos: { sdk: 'macosx', triple: 'arm64-apple-macos14.0', hermes: 'aarch64-apple-darwin', libffi: 'macosx-universal', id: 'macos-arm64', platform: 'macos' },
 };
@@ -47,21 +47,28 @@ const run = (cmd, args, options = {}) => {
 };
 const newest = (files) => Math.max(...files.map((f) => statSync(f).mtimeMs));
 
-const hermesRoot = resolve(homedir(), '.cargo/hermes-lean-sys/hermes-vanilla-d412d3bd8512-v5');
-// Bundles are installed under the SHA-256 Exact pins for each target (hermes-lean-sys/build_support.rs).
-const hermesPins = {
-  'aarch64-apple-darwin': 'bc71c7b398f1d41a5390761b75ce72e7be234aa48cb1ddec947224188ed6a4f2',
-  'universal-apple-ios-simulator': 'bd15b09b7e448d4eaec268309cee653dd4b880bcfe17d277d886daae5db0696e',
-  'aarch64-apple-ios': '6a2ecef87fd552c90284aca0d9a58898b63c8c77e6f6d04ea3192c420654039f',
+// The module's headers and bytecode must be the Hermes the host links, so the bundle is found
+// exactly as hermes-lean-sys finds it: its pin table, its overrides, its cache.
+const hermesSupport = resolve(root, 'vendor/exact/vendor/ibex/crates/hermes-lean-sys/build_support.rs');
+const hermesTag = readFileSync(hermesSupport, 'utf8').match(/RELEASE_TAG: &str = "([^"]+)"/)?.[1];
+const hermesPins = Object.fromEntries([...readFileSync(hermesSupport, 'utf8').matchAll(/target: "([^"]+)",\s*asset: "[^"]+",\s*sha256: "([0-9a-f]{64})"/g)].map((m) => [m[1], m[2]]));
+if (!hermesTag || !hermesPins['aarch64-apple-darwin']) throw new Error(`cannot read Exact's Hermes pins from ${relative(root, hermesSupport)}`);
+const hermesFor = (triple) => {
+  const override = process.env[`HERMES_LEAN_SYS_DIR_${triple.replace(/[-.]/g, '_')}`] || process.env.HERMES_LEAN_SYS_DIR;
+  if (!override && !hermesPins[triple]) throw new Error(`Exact pins no Hermes for ${triple}`);
+  const dir = override ? resolve(override) : resolve(process.env.CARGO_HOME || resolve(homedir(), '.cargo'), 'hermes-lean-sys', hermesTag, hermesPins[triple]);
+  const receipt = resolve(dir, 'hermes-input-receipt.json');
+  if (!existsSync(receipt)) throw new Error(`no Hermes ${hermesTag} for ${triple} at ${dir}; build any Exact app for it, or run bun scripts/exact.mjs setup in vendor/exact`);
+  return { dir, receipt: readJson(receipt) };
 };
-const hermesFor = (name) => {
-  const dir = resolve(hermesRoot, hermesPins[name]);
-  if (!existsSync(dir)) throw new Error(`no Hermes bundle for ${name} at ${dir}; run bun scripts/exact.mjs setup in vendor/exact`);
-  return dir;
-};
-const hermesHost = hermesFor('aarch64-apple-darwin');
-const hermes = hermesFor(target.hermes);
-const hermesc = resolve(hermesHost, 'bin/hermesc');
+const hostHermes = hermesFor(process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin');
+const targetHermes = hermesFor(target.hermes);
+for (const key of ['upstream.sourceCommit', 'bytecode.version']) {
+  const read = (r) => key.split('.').reduce((o, k) => o?.[k], r);
+  if (read(hostHermes.receipt) !== read(targetHermes.receipt)) throw new Error(`Hermes ${key} differs between the compiler (${read(hostHermes.receipt)}, ${hostHermes.dir}) and ${target.hermes} (${read(targetHermes.receipt)}, ${targetHermes.dir})`);
+}
+const hermes = targetHermes.dir;
+const hermesc = resolve(hostHermes.dir, hostHermes.receipt.compiler?.binary ?? 'bin/hermesc');
 
 const gen = resolve(app, '.nsx', targetName);
 mkdirSync(gen, { recursive: true });

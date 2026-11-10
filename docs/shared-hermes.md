@@ -26,6 +26,13 @@ shared, never Exact's hardened `app.ts` runtime.
   kept. With the host's JSI alone (tried with all 22 symbols from the host) both kept their types.
 - The ask, if the prefix matters: Exact's executable exporting JSI whole (`-export_dynamic`, or an exported-symbols
   list for `facebook::jsi::*`), which also saves the module's 0.05 MB.
+- One Hermes version by construction: `nsx.mjs` reads `RELEASE_TAG` and the pin table from hermes-lean-sys'
+  `build_support.rs` in `vendor/exact` (a path dependency, so no `Cargo.lock` entry pins it), honours the same
+  `HERMES_LEAN_SYS_DIR[_<triple>]` and `CARGO_HOME`, and takes the headers, `libjsi.a` and `hermesc` from that bundle.
+  It refuses a missing bundle by tag, triple and path, and a compiler and target bundle whose receipts differ in
+  Hermes commit or bytecode version.
+- No own-Hermes fallback: every Exact host links Hermes for `app.ts`, and one that stops exporting it is refused at
+  start by name. Linking a second copy back would be apparatus kept for a host that does not exist.
 
 ## How it was planned
 
@@ -74,7 +81,7 @@ Exact's host is in the same position as that `hermes.dll`:
   modules its result through `ExactModuleContext`, as the host already hands frames, timers and diagnostics. Saved:
   about 1.9 MB per app, about 0.6 MB compressed.
 
-### 3. One Hermes version, by construction
+### 3. One Hermes version, by construction (done)
 
 - Sharing the library makes the module's headers and the host's binary one ABI. `nsx.mjs` copies Exact's Hermes pins
   today (`hermesPins`); read them from `vendor/exact` (hermes-lean-sys' `build_support.rs`, `Cargo.lock`) and refuse
