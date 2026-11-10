@@ -78,26 +78,32 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
 
 ## Suggested order
 
-Next: record the demo (above), then 6's two questions:
+Next: record the demo (above), then 6's two questions, now measured:
 
-- **The remaining ~19 MB.** After the fixes above, the bridge step still adds 5 to 12 MB (the figures are noisy:
-  freed pages leave the footprint late), most of it Hermes heap the 69 KB global installer touches. Next: a lazier
-  installer upstream, or the installer's bytecode evaluated in a smaller heap configuration.
-- **The second Hermes.** The host links the same pinned Hermes but exports none of its symbols, so the module carries
-  its own lean VM (most of its 6 MB). Sharing it needs an Exact link flag, which goes against 8: ask only with
-  numbers that make the case.
+- **The remaining ~19 MB is not the installer.** The startup log now splits each step's footprint into live
+  JavaScript heap (after collection) and malloc. With release modules on the iOS Simulator, NativeScript's whole
+  start adds about 5.6 MB: the VM 0.7 MB, the bridge 4.9 MB (live heap +0.1 MB, malloc +2.3 MB), the modules
+  0.1 MB. A development build's bridge step adds 46 MB (malloc +22.8 MB), the cost of the full SDK metadata. The
+  modules dylib's own dirty `__DATA` and `__DATA_CONST` are under 0.3 MB. So most of the gap appears after
+  startup, as the module runs. Next: rebuild `apps/ab-swift-1` (4 to 5 GB) and diff `footprint`'s categories
+  against `apps/ab-ns-1`; nslab's 35 MB is mostly MALLOC_SMALL (15 MB) and untagged VM_ALLOCATE (6.3 MB, the
+  Hermes heaps: Exact's and this one).
+- **The second Hermes is about 1.9 MB.** A link map of the phone's `libexact_modules.dylib` (development build,
+  `-Xlinker -map` in `host.ios.link`): the lean VM 1.83 MB and JSI 0.05 MB, against the NativeScript bridge's
+  2.95 MB and the development blob's 4.63 MB (full metadata and bytecode). Sharing Exact's Hermes would save about a
+  third of the stripped 6 MB; trimming the bridge's code is the larger lever, and one that needs nothing from Exact.
 
 ## Ready to start
 
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
-### 6, the open questions
-
-- **Memory:** profile the bridge step with Instruments' Allocations on the simulator, split into Hermes heap and
-  bridge caches, before changing anything.
-- **The second Hermes:** measure how much of the stripped 6 MB module is Hermes (link map, `-Wl,-map`) so a request to
-  Exact for an exported VM comes with a number.
+- **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
+- **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
+  `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.
+- **A smaller bridge:** `NativeApiJsi.mm` compiles to 2.95 MB at `-Os`. Try `-Oz`, `-ffunction-sections` with
+  dead stripping, and `NS_GSD_BACKEND_HERMES` on or off, measuring the stripped dylib and a call's speed each time.
+- **Callback errors:** propose the reporting policy (item 9) upstream, with the abort a completion handler's error caused in `apps/nslab` as the case.
 
 ## More compelling
 
@@ -151,7 +157,7 @@ Exact tracks its budgets on every commit (`rules/RULES.md`), so these numbers wi
 - Report cold start, memory and binary size with and without the module.
 - Known so far, on the simulator: the module is ready about 43 ms after first pixel with trimmed metadata and about
   165 ms with full metadata. On macOS, the bridge installs in about 10 ms and adds about 9 MB when trimmed.
-- Try to drop the second copy of Hermes (`libnsxhermes.a`), which the module links beside the host's.
+- Try to drop the second copy of Hermes (`libnsxhermes.a`, about 1.9 MB), which the module links beside the host's.
 - Turn on generated signature dispatch (`NS_GSD_BACKEND_HERMES`, off for now) and measure call speed.
 - The current libffi prebuilts force iOS 26.4. Rebuild them for Exact's iOS 17 floor.
 

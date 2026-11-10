@@ -5,6 +5,7 @@
 #include <jsi/jsi.h>
 #include <jsi/instrumentation.h>
 #include <mach/mach.h>
+#include <malloc/malloc.h>
 #include <sys/stat.h>
 
 #include <fstream>
@@ -271,13 +272,27 @@ double footprintMB() {
 bool start() {
   if (vm) return vm->rt != nullptr;
   vm = new VM();
-  double mark = footprintMB(), began = CFAbsoluteTimeGetCurrent();
+  // Of each step's footprint, what the Hermes heap holds and what malloc does (the bridge's caches).
+  auto heapMB = [] {
+    if (!vm->rt) return 0.0;
+    auto info = vm->rt->instrumentation().getHeapInfo(false);
+    return info["hermes_allocatedBytes"] / 1048576.0;
+  };
+  auto mallocMB = [] {
+    malloc_statistics_t stats;
+    malloc_zone_statistics(nullptr, &stats);
+    return stats.size_in_use / 1048576.0;
+  };
+  double mark = footprintMB(), heap = 0, held = mallocMB(), began = CFAbsoluteTimeGetCurrent();
   auto step = [&](const char *name) {
-    double now = footprintMB(), at = CFAbsoluteTimeGetCurrent();
-    char line[96];
-    snprintf(line, sizeof line, "%s%s +%.1f MB %.1f ms", vm->startCost.empty() ? "NativeScript start: " : ", ", name, now - mark, (at - began) * 1000);
+    double now = footprintMB(), heapNow = heapMB(), heldNow = mallocMB(), at = CFAbsoluteTimeGetCurrent();
+    char line[160];
+    snprintf(line, sizeof line, "%s%s +%.1f MB (js heap %+.1f, malloc %+.1f) %.1f ms", vm->startCost.empty() ? "NativeScript start: " : ", ",
+             name, now - mark, heapNow - heap, heldNow - held, (at - began) * 1000);
     vm->startCost += line;
     mark = now;
+    heap = heapNow;
+    held = heldNow;
     began = at;
   };
   try {
