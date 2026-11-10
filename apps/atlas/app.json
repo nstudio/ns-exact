@@ -41,8 +41,8 @@
     "macos": {
       "minimumOS": "26.0",
       "window": {
-        "width": 760,
-        "height": 980
+        "width": 700,
+        "height": 900
       },
       "link": [
         "-lc++",

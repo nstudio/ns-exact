@@ -2,9 +2,11 @@
 // the same Objective-C API on both, so only what differs (haptics, the platform's map chrome) is theirs.
 import { bundleStamp, defineModule, type Session } from 'nativescript-exact';
 
+type Style = 'satellite' | 'hybrid' | 'standard';
+
 // Save this file while the app runs: the map takes the change in under a second, with no native build.
 export const look = {
-  style: 'satellite' as 'satellite' | 'hybrid' | 'standard',
+  style: 'satellite' as Style,
   pitch: 62, // degrees from straight down
   distance: 1500, // metres from the landmark
   orbit: 5, // degrees of heading per second

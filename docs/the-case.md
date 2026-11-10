@@ -58,7 +58,11 @@ the agent and hands back the one signature it needs.
 - **Per iteration**, measured above: a Swift edit returns 1.9 KB of build output (about 475 tokens) after 11 s; a
   TypeScript edit returns one line after a quarter of a second. A mistake costs a Swift agent a build and a guess;
   the checker answers with the right signature.
-- **Per task**, in a small A/B (`docs/ab-results.md`): four agents added the same feature (a synchronous call, a
+- **Three ways, one task** (`docs/ab-results.md`): three agents added Apple's NaturalLanguage to the same Exact app,
+  then changed it once. TypeScript used 68.8k tokens, Swift 80.5k, Rust 94.5k (Exact's Rust shim reaches Objective-C
+  only by hand, through `objc_msgSend`: 158 untyped lines against TypeScript's 18). TypeScript's change needed no
+  native build; Swift's and Rust's did. One run each.
+- **Per task**, in an earlier small A/B (`docs/ab-results.md`): four agents added the same feature (a synchronous call, a
   native date picker view, an asynchronous haptic) to identical apps. TypeScript used 13% fewer tokens (78 to 85k
   against 92 to 96k), 24% less time (158 to 161 s against 203 to 215 s) and one native build against three or four.
 - **What that does not show.** Two runs each; the TypeScript recipe was shorter, which favours it; and the task
@@ -88,6 +92,10 @@ tests against the TypeScript module and reads its screens in light, dark and at 
 | Native module ready after first pixel (iPhone, development build) | 17.6 ms | 61.8 ms |
 | NativeScript's start, release build (Mac, `apps/nsmac`) | | 8.2 ms, +4.4 MB |
 | Memory, development build (simulator, 8 s after launch) | 20 MB | 39 MB |
+| An Objective-C property, per call (simulator, development) | 0.27 µs | 1.35 µs |
+| Creating an `NSMutableArray`, per call | 0.04 µs | 7.4 µs |
+| Atlas, release, Mac: NativeScript's start | | 3.5 to 4.6 ms, +2.4 to 2.6 MB |
+| Atlas, release: SDK metadata kept | | 432 KB of 4.5 MB (iOS), 533 KB of 6.0 MB (Mac) |
 | `libexact_modules.dylib`, stripped (compressed) | 0.41 MB (0.14 MB), development | release 3.9 MB (1.0 MB), Mac; development 7.9 MB (2.1 MB), iOS |
 
 A development build carries the whole SDK's metadata so any API can be reached without a rebuild: that is most of
