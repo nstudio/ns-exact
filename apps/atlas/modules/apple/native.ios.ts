@@ -14,11 +14,7 @@ const tap = (at: number, intensity: number, sharpness: number) =>
     CHHapticEventParameter.alloc().initWithParameterIDValue(CHHapticEventParameterIDHapticSharpness, sharpness),
   ], at, 0);
 
-const swell = (at: number, duration: number) =>
-  CHHapticEvent.alloc().initWithEventTypeParametersRelativeTimeDuration(CHHapticEventTypeHapticContinuous, [
-    CHHapticEventParameter.alloc().initWithParameterIDValue(CHHapticEventParameterIDHapticIntensity, 0.55),
-    CHHapticEventParameter.alloc().initWithParameterIDValue(CHHapticEventParameterIDHapticSharpness, 0.2),
-  ], at, duration);
+const heartbeat = (at: number) => [tap(at, 1, 0.3), tap(at + 0.15, 0.6, 0.3)];
 
 atlas({
   device: 'iPhone',
@@ -29,12 +25,12 @@ atlas({
       if (!CHHapticEngine.capabilitiesForHardware().supportsHaptics) return reject(new Error('This device has no haptic engine'));
       const engine = checked('engine', (e) => CHHapticEngine.alloc().initAndReturnError(e));
       engine.playsHapticsOnly = true;
-      const events = [tap(0, 0.5, 0.9), tap(0.09, 0.75, 0.7), tap(0.18, 1, 0.5), swell(0.3, 0.4)];
+      const events = [...heartbeat(0), ...heartbeat(0.8)];
       const pattern = checked('pattern', (e) => CHHapticPattern.alloc().initWithEventsParametersError(events, [], e));
       checked('start', (e) => engine.startAndReturnError(e));
       const player = checked('player', (e) => engine.createPlayerWithPatternError(pattern, e));
       checked('play', (e) => player.startAtTimeError(0, e));
-      session.after(800, () => { engine.stopWithCompletionHandler(null); resolve('Three taps and a swell, 0.7 s'); });
+      session.after(1100, () => { engine.stopWithCompletionHandler(null); resolve('A heartbeat twice, strong then soft, 0.95 s'); });
     });
   },
   quiet(map) {

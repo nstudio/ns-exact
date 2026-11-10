@@ -62,7 +62,7 @@ component Atlas
             column gap=20 padding=16 width="100%" box-sizing="border-box" max-width="46rem" margin-left="auto" margin-right="auto"
               atlas-globe place=city height=330 border-radius=24 overflow="hidden" aria-label=`A 3D flyover of ${place.landmark}` testId="globe"
               row overflow-x="auto"
-                row role="radiogroup" aria-label="City" flex-shrink=0 min-width="100%"
+                row role="radiogroup" aria-label="City" flex=1 min-width="100%"
                   for id in ["tokyo", "paris", "london", "newyork", "sydney"] key=id
                     button role="radio" aria-checked=(city == id) press=pick(id) flex=1 testId=`city-${id}`
                       text cityName(id)
