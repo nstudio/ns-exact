@@ -64,9 +64,8 @@ bun ../../scripts/nsx.mjs js . --target ios --serve    # the phone takes each sa
 bun ../../scripts/nsx.mjs js . --target macos --watch  # the Mac takes each save
 ```
 
-Run one of them at a time: both rebuild on a save, and the Mac's and the phone's builds write different bundles.
-To show both devices at once, run the phone's server, and start the Mac app with `bun exact.mjs mac --run` after
-the edit.
+Each builds its own target's bundle (`.nsx/ios`, `.nsx/macos`), so with both running one save reaches both
+devices.
 
 The edits that read best on screen, each in `atlas.ts`'s `look` (save, and watch the map):
 

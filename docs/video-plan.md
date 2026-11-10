@@ -38,9 +38,8 @@ in the app, checked against the SDK and running on the device half a second afte
 - **Scene 2** needs `apps/mixed` built for the simulator (`bun exact.mjs ios` there); edit the string in
   `modules/apple/Greeter.swift`, run `bun exact.mjs ios`, then `bun exact.mjs agent ios tree`. Record the real
   wait; cut nothing out of it, but speed the middle up 4x with the stopwatch still counting real seconds.
-- **Scene 3**: run `nsx.mjs js . --target ios --serve` for the phone. To show the Mac change in the same take, record
-  the Mac separately with `--target macos --watch` and composite the two; say so in a caption ("Mac recorded
-  separately").
+- **Scene 3**: run `nsx.mjs js . --target ios --serve` for the phone and `nsx.mjs js . --target macos --watch` for
+  the Mac, side by side: one save reaches both in the same take.
 - **Scene 5**: type the mistake rather than paste it, so it reads as one; the checker's line wraps, so the
   terminal must be wide enough to show "The SDK's nearest".
 - **Scene 6**: rehearse the prompt twice; keep the run whose diff is shortest on screen. If the agent adds a view
