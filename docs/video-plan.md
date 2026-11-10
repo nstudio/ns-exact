@@ -1,56 +1,28 @@
 # The video: NativeScript in Exact
 
-**For:** anyone weighing Exact who worries about the platform APIs its packages do not cover, and how much native
-code (and how many agent tokens) that long tail will cost.
+A 64 s cut, 1920 x 1080, 30 fps, H.264 with a silent AAC track (X autoplays muted, so every claim is on
+screen). For anyone weighing Exact who worries about the platform APIs its packages do not cover.
 
-**One sentence:** Exact covers the common platform; with NativeScript, the rest of Apple's SDK is a TypeScript file
-in the app, checked against the SDK and running on the device half a second after you save it.
+## The cut
 
-**Length:** a 3 minute 30 main cut, and a 45 second cut of scenes 1, 3 and 7 for sharing.
+| Time | Scene | What it shows | Source of every number |
+|---|---|---|---|
+| 0:00 to 0:16 | The hook | `atlas.ts` on the left, large; Atlas on the Mac and the iOS Simulator on the right, recorded. Two saves (`style` to `'standard'`; `pitch` and `distance`) change both maps; chips give each device's own reading, save to running. Then what makes it possible: NativeScript inside Exact, every Objective-C API typed against the SDK, on Exact's own Hermes | The footage's Live strips: 466 and 332 ms (Mac), 428 and 293 ms (iOS) |
+| 0:16 to 0:22 | Edit to running | TypeScript 0.26 s (Mac), 0.24 to 0.39 s (simulator), 0.43 to 0.47 s (iPhone 16 Pro); Swift 12.6 to 13.4 s, relaunched | `docs/the-case.md`, "The loop" |
+| 0:22 to 0:29 | Tokens | One task three ways: TypeScript 68.8k, Swift 80.5k, Rust 94.5k | `docs/ab-results.md`, "Three ways"; the modules in `docs/ab-three-way` |
+| 0:29 to 0:36 | A call | 1.35 µs (TypeScript) against 0.27 µs (Swift) per Objective-C property; room for about 12,000 in a 60 fps frame | `docs/the-case.md`, "The costs" |
+| 0:36 to 0:49 | Type checking | The same mistake: `nsx.mjs check` refuses it in 0.5 s and names `startWithCompletionHandler`; swiftc, inside Exact's build, in 8.9 s with no suggestion | `docs/the-case.md`, "Mistakes" |
+| 0:49 to 0:58 | Footprint | Release metadata 4.5 MB to 432 KB; NativeScript starts in 4 ms, +2.5 MB; 1.0 MB compressed library | Atlas's release builds, `docs/the-case.md` |
+| 0:58 to 1:04 | Close | "Exact ships the platform. NativeScript reaches the rest of it." iOS and macOS today; Android, Windows and Linux next | README, "Every platform Exact targets" |
 
-## Setup
-
-- **Devices:** the iPhone 16 Pro, shown with iPhone Mirroring (or QuickTime's movie recording from the phone over
-  USB, which shows touches less well but never drops frames), and the Mac running Atlas in its own window.
-- **Screen:** 2560 x 1440, three columns: the editor (`apps/atlas/modules/apple`, font at 18 pt), the phone, the
-  Mac window. One terminal under the editor, 6 lines tall, font at 16 pt.
-- **Capture:** ScreenFlow or OBS at 60 fps, the system audio off (haptics have no sound; say them), a lavalier
-  microphone. Record each scene separately; nothing needs to be one take.
-- **Before recording:** `docs/demo.md`, "Setting up", then open each city once so the map tiles are cached; Auto-Lock
-  off; Focus mode on, so no notification lands in a shot; the phone's Text Size at default; Light appearance for the
-  editor and the apps (the maps read better), or dark for both.
-- **A timer overlay** for scenes 2 and 3: a stopwatch drawn in post from the recorded frames, not a live clock.
-
-## Storyboard
-
-| # | Time | On screen | Narration | What it proves | Source |
-|---|---|---|---|---|---|
-| 1 | 0:00 to 0:12 | Atlas on the phone and the Mac, orbiting Tokyo Tower in 3D; the Live badge | "Every native capability on these two screens, the 3D map, the language reading, the haptics, is TypeScript. Not a line of Swift." | The hook | `apps/atlas` |
-| 2 | 0:12 to 0:45 | Exact's package list scrolling; then `apps/mixed`'s nine-line Swift module, an edit, the terminal building, the simulator relaunching; a stopwatch stops at 13 s | "Exact's sixty packages cover the platform's common ground. Past it, you write a native module, in Swift. Each change is a native build and a relaunch: thirteen seconds for nine lines, and the screen you were on is gone." | The cost today | `docs/the-case.md`, "The loop" |
-| 3 | 0:45 to 1:40 | The editor: `atlas.ts`'s `look`. Change `style` to `'standard'`, save. Both devices turn to Apple's 3D map within half a second; the Live strip reads "saved to running in 429 ms". Then `pitch` to 75 and `distance` to 900, save: the camera drops to the rooftops | "Here is the same kind of change in TypeScript. Save. That is the phone, over Wi-Fi, and the Mac. No build, no relaunch, the app exactly where it was. The strip is the device's own measurement: four hundred milliseconds from the save." | No native rebuild; live on real hardware | `docs/demo.md`, "Measured" |
-| 4 | 1:40 to 2:05 | The three files side by side: `atlas.ts`, `native.ios.ts`, `native.macos.ts` | "One shared file for what both platforms name alike, MapKit and NaturalLanguage. A small file each for what differs: CoreHaptics on the iPhone, the trackpad on the Mac. Each is checked against its own SDK." | One language, two platforms, typed | `docs/native-in-typescript.md`, "Platform files" |
-| 5 | 2:05 to 2:40 | Type `engine.startWithCompletion(null)` and save. The terminal: the error and "The SDK's nearest: startWithCompletionHandler(…)" in half a second; the app still orbiting. Fix it, save, it runs | "The mistakes an agent makes most, a misremembered selector, are refused before anything runs, with the real one named. In Swift that is a nine second build to the same error, and no suggestion. Meanwhile the app keeps running the last good code." | Mistakes are cheap | `docs/the-case.md`, "Mistakes" |
-| 6 | 2:40 to 3:10 | Claude Code in the terminal: "Make Feel it play a heartbeat: two beats, the second softer, twice." It edits `native.ios.ts`, the check passes, the phone is tapped: the subtitle reads the new pattern | "And it is a loop an agent can run on its own. Each turn is a one-line answer, not a build log: in our A/B, agents writing the native module in TypeScript used 13% fewer tokens and a quarter less time, with one native build instead of three or four." | Agents, tokens | `docs/ab-results.md`; per-edit output in `docs/the-case.md` |
-| 7 | 3:10 to 3:30 | Back to the two devices orbiting; then a card: "Today: iOS and macOS, Objective-C APIs. Next: Android. Swift-only APIs stay Swift." | "Exact writes the web and ships the platform. NativeScript makes the rest of the platform one TypeScript file away. Swift-only APIs stay in Swift, beside it; Android is next." | The honest boundary | `docs/the-case.md`, "What NativeScript does not do" |
-
-## Scene notes
-
-- **Scene 2** needs `apps/mixed` built for the simulator (`bun exact.mjs ios` there); edit the string in
-  `modules/apple/Greeter.swift`, run `bun exact.mjs ios`, then `bun exact.mjs agent ios tree`. Record the real
-  wait; cut nothing out of it, but speed the middle up 4x with the stopwatch still counting real seconds.
-- **Scene 3**: run `nsx.mjs js . --target ios --serve` for the phone and `nsx.mjs js . --target macos --watch` for
-  the Mac, side by side: one save reaches both in the same take.
-- **Scene 5**: type the mistake rather than paste it, so it reads as one; the checker's line wraps, so the
-  terminal must be wide enough to show "The SDK's nearest".
-- **Scene 6**: rehearse the prompt twice; keep the run whose diff is shortest on screen. If the agent adds a view
-  tag or a framework, that needs a native build: choose a prompt that does not (a new pattern, a new mood word).
-- **Captions** state every number with its condition ("iPhone 16 Pro, development build, Wi-Fi").
+Design: a black ground, SF Pro Display and SF Mono, Xcode's syntax colours, one accent (the system blue) for what
+TypeScript does and grey for the alternatives; bars drawn to scale from zero; footnotes state each condition.
 
 ## Claims to avoid
 
 - "No native code": the bridge and the adapters are native; the app's author writes none.
-- "Faster than Swift" at run time: a call through NativeScript costs more than a Swift one; the module is ready
-  about 45 ms later after first pixel, and a development build uses more memory.
-- "Agents use 13% fewer tokens" without "in a small A/B": two runs each, for one feature.
+- "Faster than Swift" at run time: an Objective-C call through NativeScript costs five to seven times a Swift one, and a development
+  build uses more memory.
+- "Agents use 15% fewer tokens" without "one run each": the three-way comparison is one run per condition.
 - "Any API": Objective-C APIs. Swift-only APIs (SwiftUI, StoreKit 2, FoundationModels) are not reachable.
 - "Over the air": release builds run only the bytecode built into them; the live loop is development only.
