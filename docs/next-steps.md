@@ -17,8 +17,9 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
 ## Picking it back up
 
 - `scripts/setup.sh` fetches the pinned Exact and NativeScript sources into `vendor/`.
-- `scripts/nsx.mjs` needs ns-bevy's metadata tools in a sibling checkout, or `NSX_METADATA_TOOLS` pointing at them.
-- Trim with ns-bevy's `build-v1` generator. The newer generator's whitelist drops categories such as
+- `scripts/setup.sh` builds NativeScript's metadata tools into `.gen/metadata-tools` from the pinned sources.
+- Trim with the `build-v1` generator (NativeScript/runtimes at `3549e19`, with
+  `patches/ns-runtimes-metadata-filter.patch`). The newer generator's whitelist drops categories such as
   `UIColorSystemColors`. Whitelists also need the analyzer's default `Foundation:*` and `Runtime:*`, or the generator
   crashes.
 - Each app's `target/` is 4 to 5 GB. Build copies one at a time and watch the disk.

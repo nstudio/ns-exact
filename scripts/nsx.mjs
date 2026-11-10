@@ -47,6 +47,12 @@ const run = (cmd, args, options = {}) => {
   if (r.status !== 0) { console.error([r.stdout, r.stderr].filter(Boolean).join('\n')); throw new Error(`${basename(cmd)} failed`); }
   return r.stdout.trim();
 };
+// NativeScript's metadata generators and symbol analyzer, which scripts/setup.sh builds from the pinned sources.
+const tool = (path) => {
+  const file = resolve(process.env.NSX_METADATA_TOOLS ?? resolve(root, '.gen/metadata-tools'), path);
+  if (!existsSync(file)) throw new Error(`no ${relative(root, file)}: run scripts/setup.sh, which builds NativeScript's metadata tools`);
+  return file;
+};
 const newest = (files) => Math.max(...files.map((f) => statSync(f).mtimeMs));
 
 // The module's headers and bytecode must be the Hermes the host links, so the bundle is found
@@ -108,11 +114,10 @@ function sdkTypings() {
   const version = run('xcrun', ['--sdk', target.sdk, '--show-sdk-version']);
   const dir = resolve(root, '.gen/types', `${targetName}-${version}-3`);
   if (existsSync(resolve(dir, 'index.d.ts'))) return dir;
-  const tools = process.env.NSX_METADATA_TOOLS ?? resolve(root, '../ns-bevy/rt/metadata-tools');
   const staging = `${dir}.tmp`;
   rmSync(staging, { recursive: true, force: true });
   mkdirSync(staging, { recursive: true });
-  run(resolve(tools, 'build/bin/objc-metadata-generator'), [`types=${staging}`, 'ts-index-mode=all', '-output-bin', resolve(staging, '.nsmd'),
+  run(tool('build/bin/objc-metadata-generator'), [`types=${staging}`, 'ts-index-mode=all', '-output-bin', resolve(staging, '.nsmd'),
     '-output-umbrella', resolve(staging, '.h'), 'Xclang', '-isysroot', run('xcrun', ['--sdk', target.sdk, '--show-sdk-path']), '-std=gnu99',
     '-target', target.triple.replace('ios17.0', 'ios26.0')]);
   const reserved = 'break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|false|finally|for|function|if|import|in|instanceof|new|null|return|super|switch|throw|true|try|typeof|var|void|while|with';
@@ -373,7 +378,6 @@ function weakenImports(file, names) {
   writeFileSync(file, bytes);
 }
 
-const tools = process.env.NSX_METADATA_TOOLS ?? resolve(root, '../ns-bevy/rt/metadata-tools');
 // The global installer is extracted from the bridge so its bytecode always matches the source being linked.
 const install = readFileSync(bridgeInputs[1], 'utf8');
 const match = install.match(/R"Engine_GLOBALS\(([\s\S]*?)\)Engine_GLOBALS"/);
@@ -382,7 +386,7 @@ if (!match) throw new Error('could not find the global installer in Install.mm')
 // otherwise defines one for every name in the metadata, which costs memory at launch.
 let installer = match[1];
 if (!dev) {
-  const named = run(resolve(tools, 'analyzer/release/ns-metadata-symbols'), ['--no-default-modules', js])
+  const named = run(tool('analyzer/release/ns-metadata-symbols'), ['--no-default-modules', js])
     .split('\n').filter((l) => l.startsWith('*:')).map((l) => l.slice(2));
   const head = 'function defineLazyGlobal(name, resolve, force, nativeKind) {';
   if (!installer.includes(head)) throw new Error('the global installer has no defineLazyGlobal to filter');
@@ -402,7 +406,7 @@ const filter = [];
 if (!dev) {
   const whitelist = resolve(gen, 'whitelist.mdg');
   const converted = ['NSObject', 'NSString', 'NSNumber', 'NSArray', 'NSMutableArray', 'NSDictionary', 'NSMutableDictionary', 'NSNull', 'NSData', 'NSDate', 'NSError'];
-  run(resolve(tools, 'analyzer/release/ns-metadata-symbols'), ['--no-default-modules', '--output', whitelist, js]);
+  run(tool('analyzer/release/ns-metadata-symbols'), ['--no-default-modules', '--output', whitelist, js]);
   if (readFileSync(whitelist, 'utf8').split('\n').includes('*:*')) {
     throw new Error(`the release metadata filter is off: ${relative(process.cwd(), js)} reaches globals dynamically (globalThis in a variable, globalThis[name], (globalThis).name), so the whole SDK would ship. Keep state as one property: (globalThis as any).__name ??= {}`);
   }
@@ -411,7 +415,7 @@ if (!dev) {
 }
 // build-v1 keeps the categories of retained classes; the newer generator's whitelist drops them.
 if (!existsSync(metadata) || !dev) {
-  run(resolve(tools, 'build-v1/bin/objc-metadata-generator'), [...filter, '-output-bin', metadata, '-output-umbrella', resolve(gen, 'umbrella.h'),
+  run(tool('build-v1/bin/objc-metadata-generator'), [...filter, '-output-bin', metadata, '-output-umbrella', resolve(gen, 'umbrella.h'),
     'Xclang', '-isysroot', sdkPath, '-std=gnu99', '-target', target.triple.replace('ios17.0', 'ios26.0')]);
 }
 

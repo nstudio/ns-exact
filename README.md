@@ -105,12 +105,12 @@ as `docs/native-in-typescript.md` describes them for Apple.
 
 ## Run it
 
-You need macOS, Xcode, Rust and Bun 1.4.2, plus NativeScript's metadata generator and symbol analyzer:
-a sibling `ns-bevy` checkout ([native-shell-with-ns](https://github.com/nstudio/native-shell-with-ns)) built with
-its `scripts/build-metadata-tools.sh`, or `NSX_METADATA_TOOLS` pointing at those tools.
+You need macOS, Xcode, Rust, CMake and Bun 1.4.2. `scripts/setup.sh` fetches the pinned Exact and NativeScript
+sources and builds NativeScript's metadata generators and symbol analyzer from them into `.gen/metadata-tools`
+(about a minute; `NSX_METADATA_TOOLS` names another build of them).
 
 ```sh
-scripts/setup.sh                          # pinned Exact and NativeScript, patched
+scripts/setup.sh                          # pinned Exact and NativeScript, patched; the metadata tools
 cd apps/nslab
 bun ../../scripts/nsx.mjs build .         # the bridge, the module's bytecode, NSExact.xcframework
 bun exact.mjs ios --run                   # Exact's own build, on a simulator
