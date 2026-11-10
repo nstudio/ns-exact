@@ -69,7 +69,9 @@ defineModule((session) => ({           // made once per session; session is its 
   it. Under the agent (`session.agent`), start nothing that ticks forever, such as an endless animation: the
   agent's clock settles by running every tick due, and fails with `HatchFireLimit` on one that never ends.
 - **Reloads:** a reload evaluates the bundle again in the same VM, so what must outlive one (a live native view, a
-  ticker to stop) goes on `globalThis`, which the new code takes over. `bundleStamp()` says when the bundle's newest
+  ticker to stop) goes on `globalThis`, which the new code takes over: as one property,
+  `const kept = (globalThis as any).__name ??= {}`. `globalThis` itself in a variable, or `globalThis[name]`, turns
+  off the release build's metadata filter, and `build --release` refuses. `bundleStamp()` says when the bundle's newest
   source was saved and when it was built. `session.changed(topic)` re-asks answers that called `native.watch(topic)`.
 - **Hatches:** Exact owns the node's frame and paint, including `layer` borders and backgrounds. Add subviews,
   sublayers and gesture recognizers.

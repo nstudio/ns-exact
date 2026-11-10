@@ -34,8 +34,9 @@ const placeOf = (id: string | undefined) => places[id ?? ''] ?? places.tokyo;
 interface Globe { map: MKMapView; place: Place; heading: number; restUntil: number }
 
 // The VM outlives a reload, so what must survive one (the live maps, the tickers, the edit count) is
-// kept on globalThis, and each evaluation takes it over.
-const kept = globalThis as any;
+// kept on globalThis, and each evaluation takes it over. One named property, never globalThis itself
+// in a variable: an alias turns off the release build's metadata filter.
+const kept: any = ((globalThis as any).__atlas ??= {});
 const globes: Set<Globe> = (kept.__atlasGlobes ??= new Set());
 // An edit is a bundle whose sources were saved after the last one's: a phone's first fetch of the
 // served bundle carries the same sources as the one the build embedded.

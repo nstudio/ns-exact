@@ -403,6 +403,9 @@ if (!dev) {
   const whitelist = resolve(gen, 'whitelist.mdg');
   const converted = ['NSObject', 'NSString', 'NSNumber', 'NSArray', 'NSMutableArray', 'NSDictionary', 'NSMutableDictionary', 'NSNull', 'NSData', 'NSDate', 'NSError'];
   run(resolve(tools, 'analyzer/release/ns-metadata-symbols'), ['--no-default-modules', '--output', whitelist, js]);
+  if (readFileSync(whitelist, 'utf8').split('\n').includes('*:*')) {
+    throw new Error(`the release metadata filter is off: ${relative(process.cwd(), js)} reaches globals dynamically (globalThis in a variable, globalThis[name], (globalThis).name), so the whole SDK would ship. Keep state as one property: (globalThis as any).__name ??= {}`);
+  }
   writeFileSync(whitelist, `${readFileSync(whitelist, 'utf8')}${converted.map((n) => `*:${n}`).join('\n')}\n`);
   filter.push('-whitelist-modules', whitelist);
 }
