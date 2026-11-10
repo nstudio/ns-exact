@@ -5,14 +5,17 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
 
 ## Where it stands
 
-- An app's `modules/apple/native.ts` implements Exact's native module in TypeScript: `native.call`, `native.later`,
-  native views and element hatches. It runs on a separate lean Hermes VM on the main thread.
-- It links through Exact's `modules/apple/*.xcframework` support, so Exact needs no patches. NativeScript needs one
-  small patch (`patches/ns-lean-globals.patch`).
-- It runs on the iOS Simulator and an iPhone 16 Pro. The macOS spike (`spike/build.sh`) tests the bridge outside any
-  app, and shows why a separate VM is needed: under Exact's hardening the bridge breaks.
-- A TypeScript edit rebuilds in about 20 ms. A new view tag, hatch word or framework needs a native build (about 20 s).
-- In a two-run A/B, TypeScript used 13% fewer tokens and 24% less time than Swift (`docs/ab-results.md`).
+- An app's module (`modules/apple/native.ts`, or `native.ios.ts` and `native.macos.ts` with shared files) implements
+  Exact's native module in TypeScript: `native.call`, `native.later`, native views and element hatches. It runs on
+  the main thread, on a Hermes runtime made by the Hermes in Exact's executable (`docs/shared-hermes.md`).
+- It links through Exact's `modules/apple/*.xcframework` support, so Exact needs no patches. NativeScript takes two
+  small patches, and its metadata generator a third (`patches/`).
+- It runs on the iOS Simulator, an iPhone 16 Pro and macOS, development and release builds. `apps/atlas` is the
+  demo (`docs/demo.md`); `docs/the-case.md` sets out what it changes, measured against Swift.
+- A saved edit runs on the device in 0.24 to 0.47 s with no native build. A new view tag, hatch word or framework
+  still needs one.
+- Agents spent fewer tokens in TypeScript than in Swift or Rust (`docs/ab-results.md`), in runs too few to give an
+  effect size.
 
 ## Picking it back up
 
@@ -77,6 +80,12 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
   not restarted. To record: one prompt to an agent with `docs/native-in-typescript.md`, the package played on the
   phone, then a live edit to the pattern.
 
+- **Platform files, the demo and the case:** `native.ios.ts` and `native.macos.ts` with shared imports, each checked
+  against its own SDK; `js --watch` for the simulator and the Mac; `apps/atlas` on iPhone and Mac, `verify ios`
+  clean; the checker names the SDK's nearest member; a release build refuses a metadata filter turned off by
+  dynamic global access; a 64 s video (its plan, `docs/video-plan.md`); `scripts/setup.sh` builds the metadata
+  tools from the pinned sources.
+
 ## Suggested order
 
 Next: record the demo (above), then 6's two questions, now measured:
@@ -99,15 +108,23 @@ Next: record the demo (above), then 6's two questions, now measured:
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
-- **NativeScript on Android:** done on iOS (simulator and phone) and macOS (`docs/shared-hermes.md`). Android
-  waits on two asks of Exact (Hermes handed to modules, a module's native library packed into the APK), then
-  NativeScript's JNI backend built for Exact; `docs/shared-hermes.md`, "Where it stands", lists each.
-- **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
+- **A stronger A/B:** five runs per condition of a tuning task with no new view tag (Atlas's haptic signature to a
+  description, a wrong sentiment threshold), with equal-length recipes, in TypeScript, Swift and Rust. About 1 to
+  1.5M tokens of agent work.
+- **Android:** waits on two changes in Exact (Hermes handed to modules, a module's native library packed into the
+  APK), then NativeScript's JNI backend built for Exact; `docs/shared-hermes.md`, "Android, where it stands".
+- **Windows and Linux:** Node-API on the Hermes that runs `@nativescript/windows-napi` and linux-runtime's
+  `linux-napi`; the README's "Every platform Exact targets" gives the three ways, in order.
+- **Lower deployment targets:** the bundled libffi is built for iOS 26.4 and macOS 26.0; build it for the oldest
+  targets Exact supports.
 - **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
   `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.
 - **A smaller bridge:** `NativeApiJsi.mm` compiles to 2.95 MB at `-Os`. Try `-Oz`, `-ffunction-sections` with
   dead stripping, and `NS_GSD_BACKEND_HERMES` on or off, measuring the stripped dylib and a call's speed each time.
-- **Callback errors:** propose the reporting policy (item 9) upstream, with the abort a completion handler's error caused in `apps/nslab` as the case.
+- **Callback errors:** propose the reporting policy (item 9) upstream, with the abort a completion handler's error
+  caused in `apps/nslab` as the case.
+- **Swift-only APIs:** a generated Swift shim per API that exposes it to Objective-C, so a module reaches StoreKit 2
+  or FoundationModels too.
 
 ## More compelling
 
