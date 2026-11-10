@@ -98,6 +98,8 @@ Next: record the demo (above), then 6's two questions, now measured:
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
+- **One Hermes per process, first:** `docs/shared-hermes.md`. The bridge needs no Hermes symbol and the seam three,
+  which Exact's executable already exports, so the module can use the host's Hermes library with its own runtime.
 - **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
 - **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
   `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.
@@ -157,7 +159,8 @@ Exact tracks its budgets on every commit (`rules/RULES.md`), so these numbers wi
 - Report cold start, memory and binary size with and without the module.
 - Known so far, on the simulator: the module is ready about 43 ms after first pixel with trimmed metadata and about
   165 ms with full metadata. On macOS, the bridge installs in about 10 ms and adds about 9 MB when trimmed.
-- Try to drop the second copy of Hermes (`libnsxhermes.a`, about 1.9 MB), which the module links beside the host's.
+- Drop the second copy of Hermes (`libnsxhermes.a`, about 1.9 MB), which the module links beside the host's:
+  `docs/shared-hermes.md`.
 - Turn on generated signature dispatch (`NS_GSD_BACKEND_HERMES`, off for now) and measure call speed.
 - The current libffi prebuilts force iOS 26.4. Rebuild them for Exact's iOS 17 floor.
 
