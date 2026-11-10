@@ -30,7 +30,15 @@
         "-framework",
         "CoreLocation",
         "-framework",
-        "CoreHaptics"
+        "CoreHaptics",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZN6hermes2vm15NopCrashManagerD1Ev",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZTVN6hermes2vm15NopCrashManagerE"
       ],
       "minimumOS": "26.4"
     }

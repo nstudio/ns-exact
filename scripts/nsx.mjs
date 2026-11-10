@@ -274,6 +274,35 @@ if (!existsSync(seamObj) || newest(seamInputs) > statSync(seamObj).mtimeMs) {
   run('xcrun', ['--sdk', target.sdk, 'clang++', ...cxx, '-c', seamInputs[0], '-o', seamObj]);
 }
 
+// The module links no Hermes: the seam makes its runtime from the one Exact's executable exports.
+// The few Hermes symbols the seam names (a RuntimeConfig's default crash manager) are resolved at
+// launch from that executable (-U in app.json, below), as weak imports, so a process without them,
+// such as the production build's roster probe, still loads the dylib. JSI stays the module's own:
+// a release executable keeps only the JSI functions Exact itself calls.
+const symbols = (args) => new Set(run('nm', args).split('\n').map((l) => l.trim().split(/\s+/).pop()).filter(Boolean));
+const hermesDefined = symbols(['-gUj', resolve(hermes, 'lib/libhermesvmlean_a.a')]);
+const fromHost = [...symbols(['-uj', bridgeObj, seamObj])].filter((s) => hermesDefined.has(s)).sort();
+for (const obj of [bridgeObj, seamObj]) weakenImports(obj, new Set(fromHost));
+
+// Sets N_WEAK_REF on the named undefined symbols of a thin 64-bit Mach-O object.
+function weakenImports(file, names) {
+  const bytes = readFileSync(file);
+  if (bytes.readUInt32LE(0) !== 0xfeedfacf) throw new Error(`${file} is not a thin 64-bit Mach-O object`);
+  let at = 32;
+  for (let i = 0, count = bytes.readUInt32LE(16); i < count; i++, at += bytes.readUInt32LE(at + 4)) {
+    if (bytes.readUInt32LE(at) !== 0x2) continue; // LC_SYMTAB
+    const symoff = bytes.readUInt32LE(at + 8), nsyms = bytes.readUInt32LE(at + 12), stroff = bytes.readUInt32LE(at + 16);
+    for (let n = 0; n < nsyms; n++) {
+      const entry = symoff + n * 16, type = bytes[entry + 4];
+      if ((type & 0x0e) !== 0 || !(type & 0x01)) continue; // undefined and external only
+      const start = stroff + bytes.readUInt32LE(entry);
+      const name = bytes.toString('latin1', start, bytes.indexOf(0, start));
+      if (names.has(name)) bytes.writeUInt16LE(bytes.readUInt16LE(entry + 6) | 0x0040, entry + 6);
+    }
+  }
+  writeFileSync(file, bytes);
+}
+
 const tools = process.env.NSX_METADATA_TOOLS ?? resolve(root, '../ns-bevy/rt/metadata-tools');
 // The global installer is extracted from the bridge so its bytecode always matches the source being linked.
 const install = readFileSync(bridgeInputs[1], 'utf8');
@@ -343,9 +372,8 @@ const thin = (from, name) => {
   if (archs.includes(' ')) run('xcrun', ['lipo', from, '-thin', 'arm64', '-output', out]); else copyFileSync(from, out);
 };
 thin(resolve(ns, 'NativeScript/libffi', target.libffi, 'libffi.a'), 'libnsxffi.a');
-thin(resolve(hermes, 'lib/libhermesvmlean_a.a'), 'libnsxhermes.a');
+// No Hermes: the seam makes its runtime from the one Exact's executable exports (hostRuntime in nsx.mm).
 thin(resolve(hermes, 'lib/libjsi.a'), 'libnsxjsi.a');
-thin(resolve(hermes, 'lib/libboost_context.a'), 'libnsxboost.a');
 writeFileSync(resolve(slice, 'slice.json'), JSON.stringify({ id: target.id, platform: target.platform, variant: target.variant }));
 const slices = readdirSync(xc).filter((d) => existsSync(resolve(xc, d, 'slice.json'))).map((d) => readJson(resolve(xc, d, 'slice.json')));
 writeFileSync(resolve(xc, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
@@ -378,6 +406,21 @@ if (existsSync(ownModule)) {
 const link = manifest.host?.[target.platform]?.link ?? [];
 const needed = ['-lc++', '-licucore'].filter((a) => !link.includes(a));
 if (needed.length) console.error(`app.json host.${target.platform}.link lacks ${needed.join(' ')}, which the bridge needs: add ${JSON.stringify(needed)}`);
+
+// The -U flags for the Hermes symbols the module takes from Exact's executable (fromHost, above).
+const kept = [];
+for (let i = 0; i < link.length; i++) {
+  if (link[i] === '-Xlinker' && link[i + 1] === '-U' && link[i + 2] === '-Xlinker') i += 3;
+  else kept.push(link[i]);
+}
+const linked = [...kept, ...fromHost.flatMap((s) => ['-Xlinker', '-U', '-Xlinker', s])];
+if (JSON.stringify(linked) !== JSON.stringify(link)) {
+  manifest.host ??= {};
+  manifest.host[target.platform] ??= {};
+  manifest.host[target.platform].link = linked;
+  writeFileSync(resolve(app, 'app.json'), JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`app.json host.${target.platform}.link: the ${fromHost.length} Hermes symbols the module takes from Exact's executable`);
+}
 
 const sizes = { metadata: statSync(metadata).size, bytecode: statSync(hbc).size, bridgeCode: statSync(bridgeObj).size };
 console.log(`NSExact.xcframework for ${targetName} in ${Math.round(performance.now() - started)} ms`, sizes);

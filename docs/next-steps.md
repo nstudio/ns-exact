@@ -88,7 +88,7 @@ Next: record the demo (above), then 6's two questions, now measured:
   startup, as the module runs. Next: rebuild `apps/ab-swift-1` (4 to 5 GB) and diff `footprint`'s categories
   against `apps/ab-ns-1`; nslab's 35 MB is mostly MALLOC_SMALL (15 MB) and untagged VM_ALLOCATE (6.3 MB, the
   Hermes heaps: Exact's and this one).
-- **The second Hermes is about 1.9 MB.** A link map of the phone's `libexact_modules.dylib` (development build,
+- **The second Hermes was about 1.9 MB, now gone** (`docs/shared-hermes.md`). A link map of the phone's `libexact_modules.dylib` (development build,
   `-Xlinker -map` in `host.ios.link`): the lean VM 1.83 MB and JSI 0.05 MB, against the NativeScript bridge's
   2.95 MB and the development blob's 4.63 MB (full metadata and bytecode). Sharing Exact's Hermes would save about a
   third of the stripped 6 MB; trimming the bridge's code is the larger lever, and one that needs nothing from Exact.
@@ -98,8 +98,9 @@ Next: record the demo (above), then 6's two questions, now measured:
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
-- **One Hermes per process, first:** `docs/shared-hermes.md`. The bridge needs no Hermes symbol and the seam three,
-  which Exact's executable already exports, so the module can use the host's Hermes library with its own runtime.
+- **One Hermes per process, on the phone:** done on the simulator (`docs/shared-hermes.md`); run nslab, the haptic
+  pattern and `js --serve` on the iPhone. Then steps 3 and 4 of that plan: Exact's pins read, not copied; macOS
+  and Android.
 - **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
 - **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
   `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.
@@ -159,8 +160,7 @@ Exact tracks its budgets on every commit (`rules/RULES.md`), so these numbers wi
 - Report cold start, memory and binary size with and without the module.
 - Known so far, on the simulator: the module is ready about 43 ms after first pixel with trimmed metadata and about
   165 ms with full metadata. On macOS, the bridge installs in about 10 ms and adds about 9 MB when trimmed.
-- Drop the second copy of Hermes (`libnsxhermes.a`, about 1.9 MB), which the module links beside the host's:
-  `docs/shared-hermes.md`.
+- The second copy of Hermes (`libnsxhermes.a`, about 1.9 MB) is gone: `docs/shared-hermes.md`.
 - Turn on generated signature dispatch (`NS_GSD_BACKEND_HERMES`, off for now) and measure call speed.
 - The current libffi prebuilts force iOS 26.4. Rebuild them for Exact's iOS 17 floor.
 

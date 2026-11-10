@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #include <CommonCrypto/CommonHMAC.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <dlfcn.h>
 #include <hermes/hermes.h>
 #include <jsi/jsi.h>
 #include <jsi/instrumentation.h>
@@ -211,6 +212,25 @@ void installHost() {
   rt.global().setProperty(rt, "__nsxHost", host);
 }
 
+// The host's Hermes, which Exact's executable exports: the module links none of its own, so the VM
+// runs on the very build of Hermes app.ts does. The root API is looked up; everything else is
+// reached through JSI's virtual interfaces, or is one of the few symbols a RuntimeConfig names
+// (its default crash manager), which nsx.mjs leaves to the host as weak imports. JSI is the
+// module's own, so an error Hermes throws reaches the seam as a std::exception, its what() the
+// message and stack.
+std::unique_ptr<facebook::hermes::HermesRuntime> hostRuntime(std::string &error) {
+  using RootFn = facebook::jsi::ICast *(*)();
+  auto root = reinterpret_cast<RootFn>(dlsym(RTLD_DEFAULT, "_ZN8facebook6hermes17makeHermesRootAPIEv"));
+  auto *api = root ? facebook::jsi::castInterface<facebook::hermes::IHermesRootAPI>(root()) : nullptr;
+  if (!api || !dlsym(RTLD_DEFAULT, "_ZTVN6hermes2vm15NopCrashManagerE") || !dlsym(RTLD_DEFAULT, "_ZN6hermes2vm15NopCrashManagerD1Ev")) {
+    error = "this Exact host exports no Hermes (makeHermesRootAPI, NopCrashManager); the module links none of its own";
+    return nullptr;
+  }
+  auto gc = ::hermes::vm::GCConfig::Builder().withMaxHeapSize(64 << 20).build();
+  auto config = ::hermes::vm::RuntimeConfig::Builder().withEnableEval(false).withMicrotaskQueue(true).withGCConfig(gc).build();
+  return api->makeHermesRuntime(config);
+}
+
 bool devIsURL() { return strncmp(nsx_dev_path, "http://", 7) == 0; }
 
 std::string signature(const uint8_t *bytes, size_t size) {
@@ -296,9 +316,8 @@ bool start() {
     began = at;
   };
   try {
-    auto gc = ::hermes::vm::GCConfig::Builder().withMaxHeapSize(64 << 20).build();
-    auto config = ::hermes::vm::RuntimeConfig::Builder().withEnableEval(false).withMicrotaskQueue(true).withGCConfig(gc).build();
-    vm->rt = facebook::hermes::makeHermesRuntime(config);
+    vm->rt = hostRuntime(vm->startError);
+    if (!vm->rt) return false;
     step("vm");
     nativescript::NativeApiJsiConfig bridge;
     bridge.metadataPtr = nsx_metadata;

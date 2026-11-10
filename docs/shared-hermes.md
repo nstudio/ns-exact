@@ -1,9 +1,33 @@
-# Plan: one Hermes per process
+# One Hermes per process
 
-The module links its own copy of the pinned Hermes (`libnsxhermes.a`, 1.83 MB of the phone's modules dylib, and
-`libnsxjsi.a`, 0.05 MB), beside the identical copy Exact's host already links for `app.ts`. This plan removes it.
-The module keeps its own runtime, on the main thread, under its own 100 ms watchdog: only the library is shared,
-never Exact's hardened `app.ts` runtime.
+The module linked its own copy of the pinned Hermes (`libnsxhermes.a`, 1.83 MB of the phone's modules dylib),
+beside the identical copy Exact's host already links for `app.ts`. It no longer does: the module keeps its own
+runtime, on the main thread, under its own 100 ms watchdog, made by the host's Hermes. Only the library is
+shared, never Exact's hardened `app.ts` runtime.
+
+## Where it stands
+
+- `hostRuntime` in `bridge/nsx.mm` finds `makeHermesRootAPI` with `dlsym` and makes the runtime through
+  `IHermesRootAPI`, with the config built as before. A host that exports no Hermes refuses by name.
+- The config's default crash manager names two Hermes symbols (`NopCrashManager`'s destructor and vtable).
+  `nsx.mjs` leaves them undefined, resolved at launch from Exact's executable (`-U` in `app.json` `host.ios.link`,
+  which `nsx.mjs build` writes), and marks them weak imports in the objects (`N_WEAK_REF`), so a process without
+  them still loads the dylib: the production build's roster probe does.
+- JSI stays the module's own (0.05 MB). A release executable keeps only the JSI functions Exact itself calls:
+  four the bridge calls were missing (`Value::asString`, `Object::asFunction`, `Value::strictEquals`,
+  `~HostObject`), and a weak import of them was null, a crash at the first call.
+- Verified on the iOS Simulator, development and release builds: nslab's call, later, view, hatch, diagnostics and
+  haptic package; `scripts/sessions-ios.mjs`; the watchdog stopping an infinite loop with a `TimeoutError`; a
+  `throw` in `native.ts` reaching Swift with its message and stack. The link map of the phone's dylib lost 1.91 MB
+  of Hermes and JSI symbols (9.97 to 8.06 MB); with JSI back, about 1.86 MB. Not yet run on the phone.
+- What two JSI copies cost: Hermes and the bridge each catch `jsi::JSError` by their own `type_info`. An error
+  Hermes throws reaches the seam as a `std::exception`, whose `what()` keeps the message and stack. An error the
+  bridge throws reaches JavaScript as a plain `Error` with the prefix "Exception in HostFunction:", its message
+  kept. With the host's JSI alone (tried with all 22 symbols from the host) both kept their types.
+- The ask, if the prefix matters: Exact's executable exporting JSI whole (`-export_dynamic`, or an exported-symbols
+  list for `facebook::jsi::*`), which also saves the module's 0.05 MB.
+
+## How it was planned
 
 ## Why it can work without changing Exact
 

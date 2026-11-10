@@ -4,7 +4,8 @@
 every other Objective-C API directly, with no Swift and no native rebuild per edit.**
 
 Exact's ~60 packages cover the common platform APIs. This reaches the rest: an app's own native module, or a
-package, is a TypeScript file run by [NativeScript](https://nativescript.org) on a Hermes VM of its own.
+package, is a TypeScript file run by [NativeScript](https://nativescript.org) on a Hermes runtime of its own, made
+by the Hermes Exact already links (`docs/shared-hermes.md`).
 
 > Experimental. Run on the iOS Simulator and an iPhone 16 Pro; not yet on macOS or Android. Not an official Exact
 > or NativeScript release.
@@ -59,7 +60,8 @@ use searchNearby, PlaceResult from "@ns-exact/local-search"
 - **Mistakes are refused:** `nsx.mjs check` type-checks against the whole SDK in under a second and reports in
   `contract build --json`'s shape, so a hallucinated selector is a refusal, not `undefined` at run time.
 - **The cost, on an iPhone:** first pixel unchanged; the module ready about 45 ms later than a Swift one; +1.7 MB
-  compressed download; about +19 MB of memory (`docs/next-steps.md`, item 6).
+  compressed download, measured before the module stopped linking its own Hermes (about 1.9 MB uncompressed);
+  about +19 MB of memory (`docs/next-steps.md`, item 6).
 - **Tokens:** in a small A/B, agents writing TypeScript used 13% fewer tokens and 24% less time than agents
   writing Swift (`docs/ab-results.md`). Two runs each, so treat it as a direction.
 
