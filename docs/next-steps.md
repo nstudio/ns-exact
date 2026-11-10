@@ -98,8 +98,9 @@ Next: record the demo (above), then 6's two questions, now measured:
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
 
-- **One Hermes per process on Android:** done on iOS (simulator and phone) and macOS (`docs/shared-hermes.md`).
-  Android is step 4's last part.
+- **NativeScript on Android:** done on iOS (simulator and phone) and macOS (`docs/shared-hermes.md`). Android
+  waits on two asks of Exact (Hermes handed to modules, a module's native library packed into the APK), then
+  NativeScript's JNI backend built for Exact; `docs/shared-hermes.md`, "Where it stands", lists each.
 - **Record the demo** (a person, with the phone): the prompt, the package written and played, a live edit.
 - **Where the memory goes:** rebuild `apps/ab-swift-1` and `apps/ab-ns-1` for the simulator, launch each, and diff
   `footprint <pid>`'s categories 8 s after launch. Done when each MB of the gap has a category.

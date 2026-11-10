@@ -41,6 +41,23 @@ shared, never Exact's hardened `app.ts` runtime.
 - Windows and Linux: Exact's Hermes bundles carry no Node-API (no `napi_*` or `jsr_*` symbol in `libhermesvm*.a`,
   no `js_native_api.h`), which NativeScript's Windows backend binds through. Those hosts need Exact's Hermes built
   with Node-API, or a JSI build of that backend.
+- Android, where it stands: Exact's Hermes for `aarch64-linux-android` is published in the pinned release
+  (`hermes-vanilla-aarch64-linux-android.tar.gz`, matching the pin; `exact setup` still says no release ships one),
+  and `bun scripts/hermes-android.mjs install <archive>` installs it. With it an Exact app builds an APK. Hermes is
+  linked statically into the one library, `libexactcanvas.so`, whose 137 dynamic symbols are Exact's C ABI and
+  JNI entries, none of Hermes or JSI: rustc's cdylib version script keeps C++ symbols local. App modules on
+  Android are Kotlin (`modules/android`, `ExactExtension`, `NativeModules`), and the APK packs only the app's Rust
+  library. So NativeScript cannot reach Exact's Hermes on Android without two asks of Exact:
+  - Hand modules Hermes: a `#[no_mangle]` accessor beside the code that links it, returning `makeHermesRootAPI()`
+    (the two `NopCrashManager` symbols with it), as Exact already hands modules frames and timers. A
+    `--export-dynamic-symbol` link argument through `CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS` left the
+    exports unchanged.
+  - Pack a module's native library: `modules/android/jniLibs` (or a package's `sources.jniLibs`) into the APK.
+  - On NativeScript's side: build its JNI backend (`NativeScript/runtime/android/jsi`, entry
+    `tns::Runtime::Attach(env, obj, runtimeId, jsi::Runtime*, metadataDir, …)`) with the NDK against Exact's
+    headers, its `com.tns` Java classes and metadata generator jars, a Kotlin adapter in the place of
+    `NSExactModule.swift`, and bytecode for the five places that backend evaluates source (`EngineHost.cpp:280,365`,
+    `ffi/jni/jsi/Engine.cpp:24`, `GlobalHelpers.cpp:53`, `JSONObjectHelper.cpp:61`), since the lean VM compiles none.
 - No own-Hermes fallback: every Exact host links Hermes for `app.ts`, and one that stops exporting it is refused at
   start by name. Linking a second copy back would be apparatus kept for a host that does not exist.
 
