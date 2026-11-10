@@ -4,12 +4,14 @@
 //   bun scripts/nsx.mjs check <app dir> [--json]   type-check them against the SDK; build and js run it first
 //   bun scripts/nsx.mjs build <app dir>            everything, including NSExact.xcframework
 //   bun scripts/nsx.mjs js <app dir>               only the bytecode a running development app reloads
+//   bun scripts/nsx.mjs js <app dir> --watch       rebuild it on each edit, for a simulator or the Mac
 //   bun scripts/nsx.mjs js <app dir> --target ios --serve [--port N]   serve it to a phone, rebuilt on each edit
 //   bun scripts/nsx.mjs package <package dir>      write the package's Swift adapter, apple/NSExactPackage.swift
 // Each app verb takes --target ios-sim|ios|macos (default ios-sim; ios is a device); build and js take --no-check.
+// A module is modules/apple/native.ts, or native.ios.ts and native.macos.ts, each importing shared files.
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { homedir, networkInterfaces } from 'node:os';
 import { basename, dirname, relative, resolve } from 'node:path';
 
@@ -23,7 +25,7 @@ if (verb === 'package') {
   const impl = readJson(resolve(app, 'apple/exact.json')), name = readJson(resolve(app, 'exact.json')).name;
   if (!impl.sources?.swift?.includes('NSExactPackage.swift')) throw new Error('apple/exact.json must list NSExactPackage.swift in sources.swift');
   if (!/^[A-Za-z_]\w*$/.test(impl.class ?? '')) throw new Error('apple/exact.json must name a Swift class in `class`');
-  if (!existsSync(resolve(app, 'apple/native.ts'))) throw new Error('the package has no apple/native.ts');
+  if (!['native.ts', 'native.ios.ts', 'native.macos.ts'].some((f) => existsSync(resolve(app, 'apple', f)))) throw new Error('the package has no apple/native.ts, native.ios.ts or native.macos.ts');
   const template = readFileSync(resolve(root, 'bridge/NSExactPackage.swift'), 'utf8');
   writeFileSync(resolve(app, 'apple/NSExactPackage.swift'), template.replaceAll('__CLASS__', impl.class).replaceAll('__PACKAGE__', name));
   console.log(`apple/NSExactPackage.swift: ${impl.class} serves ${name}`);
@@ -74,21 +76,25 @@ const gen = resolve(app, '.nsx', targetName);
 mkdirSync(gen, { recursive: true });
 // The app's own module, then each NativeScript package the app uses: Exact's own reading of
 // which package implementations an app links, narrowed to those served by NSExactPackage.swift.
-const ownModule = resolve(app, 'modules/apple/native.ts');
+// A module's file for one platform is `native.<platform>.ts` where it has one, else `native.ts`; its
+// relative imports resolve the same way, in the checker (`moduleSuffixes`) and the bundle alike.
+const suffixes = [`.${target.platform}`, ''];
+const platformFile = (base) => suffixes.map((s) => `${base}${s}.ts`).find((f) => existsSync(f)) ?? `${base}.ts`;
+const ownModule = platformFile(resolve(app, 'modules/apple/native'));
 const { appleImplementations } = await import(resolve(root, 'vendor/exact/js/bake/src/typescript.mjs'));
 // Bun copies a `file:` dependency into node_modules, so its native.ts is read from the source
 // directory: an edit there then reaches the bundle without another `bun install`.
 const appDependencies = existsSync(resolve(app, 'package.json')) ? readJson(resolve(app, 'package.json')).dependencies ?? {} : {};
 const sourceOf = (name, installed) => {
   const spec = appDependencies[name];
-  return typeof spec === 'string' && spec.startsWith('file:') ? resolve(app, spec.slice(5), 'apple/native.ts') : installed;
+  return platformFile(typeof spec === 'string' && spec.startsWith('file:') ? resolve(app, spec.slice(5), 'apple/native') : installed);
 };
 const packages = appleImplementations(app, target.platform)
   .filter((p) => p.sources.some((f) => basename(f) === 'NSExactPackage.swift'))
   .map((p) => {
     const dir = dirname(p.sources.find((f) => basename(f) === 'NSExactPackage.swift'));
     const name = readJson(resolve(dir, '../exact.json')).name;
-    return { name, file: sourceOf(name, resolve(dir, 'native.ts')) };
+    return { name, file: sourceOf(name, resolve(dir, 'native')) };
   });
 const modules = [...(existsSync(ownModule) ? [{ name: 'app', file: ownModule }] : []), ...packages];
 if (!modules.length) throw new Error(`${app} has no modules/apple/native.ts and uses no NativeScript package`);
@@ -140,7 +146,7 @@ function check() {
   writeFileSync(out, JSON.stringify({
     compilerOptions: {
       target: 'es2022', module: 'esnext', moduleResolution: 'bundler', strict: false, noEmit: true, skipLibCheck: true,
-      lib: ['es2022'], types: [], paths: { 'nativescript-exact': [resolve(root, 'bridge/runtime.ts')] },
+      lib: ['es2022'], types: [], moduleSuffixes: suffixes, paths: { 'nativescript-exact': [resolve(root, 'bridge/runtime.ts')] },
     },
     files: [resolve(root, 'vendor/ns-runtimes/packages/objc-node-api/index.d.ts'), resolve(sdkTypings(), 'index.d.ts'), ...modules.map((m) => m.file)],
   }, null, 2));
@@ -183,8 +189,12 @@ function compileBytecode(source, out) {
 }
 
 async function buildJs() {
-  const entry = resolve(gen, 'entry.ts');
+  const entry = resolve(gen, 'entry.ts'), stamp = resolve(gen, 'stamp.ts');
+  const sources = [...new Set(modules.map((m) => dirname(m.file)))].flatMap((d) => readdirSync(d, { recursive: true })
+    .filter((f) => String(f).endsWith('.ts') && !String(f).endsWith('.d.ts')).map((f) => resolve(d, String(f))));
+  writeFileSync(stamp, `(globalThis as any).__nsxBundle = { saved: ${Math.round(newest(sources))}, built: ${Date.now()} };\n`);
   writeFileSync(entry, [
+    `import ${JSON.stringify(stamp)};`,
     "import { __register } from 'nativescript-exact';",
     ...modules.map((m, i) => m.name === 'app' ? `import ${JSON.stringify(m.file)};` : `import p${i} from ${JSON.stringify(m.file)};\n__register(${JSON.stringify(m.name)}, p${i});`),
   ].join('\n') + '\n');
@@ -193,7 +203,14 @@ async function buildJs() {
     target: 'browser',
     format: 'iife',
     minify: false,
-    plugins: [{ name: 'nsx', setup(b) { b.onResolve({ filter: /^nativescript-exact$/ }, () => ({ path: resolve(root, 'bridge/runtime.ts') })); } }],
+    plugins: [{ name: 'nsx', setup(b) {
+      b.onResolve({ filter: /^nativescript-exact$/ }, () => ({ path: resolve(root, 'bridge/runtime.ts') }));
+      b.onResolve({ filter: /^\.\.?\// }, (args) => {
+        const base = resolve(dirname(args.importer), args.path).replace(/\.ts$/, '');
+        const found = suffixes.map((s) => `${base}${s}.ts`).find((f) => existsSync(f));
+        return found ? { path: found } : undefined;
+      });
+    } }],
   });
   if (!built.success) { for (const log of built.logs) console.error(String(log)); throw new Error('bundle failed'); }
   const js = resolve(gen, 'native.bundle.js');
@@ -215,28 +232,35 @@ const macAddress = () => process.env.NSX_DEV_HOST ?? [...(networkInterfaces().en
 
 const started = performance.now();
 let { js, hbc } = await buildJs();
-if (verb === 'js' && rest.includes('--serve')) {
-  if (!servesPhone) throw new Error('--serve is for a phone: --target ios, without --release');
-  if (!existsSync(devKey)) throw new Error(`no ${relative(process.cwd(), devKey)}: build the phone's development app first (nsx.mjs build <app> --target ios)`);
-  const key = readFileSync(devKey);
-  let bytes = readFileSync(hbc), version = createHmac('sha256', key).update(bytes).digest('hex');
+const serving = verb === 'js' && rest.includes('--serve');
+if (verb === 'js' && (serving || rest.includes('--watch'))) {
+  if (serving && !servesPhone) throw new Error('--serve is for a phone: --target ios, without --release; --watch is for a simulator or the Mac');
+  if (!serving && servesPhone) throw new Error('a phone reads no file on this Mac: --serve, not --watch');
+  let key, bytes, version;
   const waiting = new Set();
-  const answer = () => new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'X-NSX-Signature': version } });
-  Bun.serve({
-    port: devPort,
-    hostname: '0.0.0.0',
-    idleTimeout: 0,
-    fetch(request) {
-      if (new URL(request.url).pathname !== '/native.hbc') return new Response('not found', { status: 404 });
-      if (new URL(request.url).searchParams.get('after') !== version) return answer();
-      return new Promise((settle) => {
-        const held = { settle };
-        waiting.add(held);
-        setTimeout(() => { if (waiting.delete(held)) settle(new Response(null, { status: 204 })); }, 30000);
-      });
-    },
-  });
-  console.log(`serving ${basename(hbc)} on port ${devPort}; edits to ${modules.map((m) => relative(process.cwd(), m.file)).join(', ')} rebuild it`);
+  const sign = () => { bytes = readFileSync(hbc); version = createHmac('sha256', key).update(bytes).digest('hex'); };
+  if (serving) {
+    if (!existsSync(devKey)) throw new Error(`no ${relative(process.cwd(), devKey)}: build the phone's development app first (nsx.mjs build <app> --target ios)`);
+    key = readFileSync(devKey);
+    sign();
+    const answer = () => new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'X-NSX-Signature': version } });
+    Bun.serve({
+      port: devPort,
+      hostname: '0.0.0.0',
+      idleTimeout: 0,
+      fetch(request) {
+        if (new URL(request.url).pathname !== '/native.hbc') return new Response('not found', { status: 404 });
+        if (new URL(request.url).searchParams.get('after') !== version) return answer();
+        return new Promise((settle) => {
+          const held = { settle: () => settle(answer()) };
+          waiting.add(held);
+          setTimeout(() => { if (waiting.delete(held)) settle(new Response(null, { status: 204 })); }, 30000);
+        });
+      },
+    });
+  }
+  const dirs = [...new Set(modules.map((m) => dirname(m.file)))];
+  console.log(`${serving ? `serving ${basename(hbc)} on port ${devPort}` : `watching for ${targetName}`}; an edit to a .ts file in ${dirs.map((d) => relative(process.cwd(), d) || '.').join(', ')} rebuilds it`);
   let timer = null;
   const rebuild = async () => {
     const t0 = performance.now();
@@ -244,16 +268,16 @@ if (verb === 'js' && rest.includes('--serve')) {
     for (const d of found) console.error(`${d.file}:${d.line}:${d.col} [${d.id}] ${d.message}`);
     if (found.some((d) => d.severity === 'error')) return;
     try { ({ js, hbc } = await buildJs()); } catch (e) { console.error(e.message); return; }
-    bytes = readFileSync(hbc);
-    version = createHmac('sha256', key).update(bytes).digest('hex');
-    for (const held of waiting) held.settle(answer());
-    console.log(`rebuilt in ${Math.round(performance.now() - t0)} ms; sent to ${waiting.size} waiting`);
+    if (serving) { sign(); for (const held of waiting) held.settle(); }
+    console.log(`rebuilt in ${Math.round(performance.now() - t0)} ms${serving ? `; sent to ${waiting.size} waiting` : ''}`);
     waiting.clear();
   };
   const { watch } = await import('node:fs');
   // Directories, not files: an editor that saves by replacing the file ends a file's watch.
-  for (const file of new Set(modules.map((m) => m.file))) {
-    watch(dirname(file), (_, name) => { if (name === basename(file)) { clearTimeout(timer); timer = setTimeout(rebuild, 50); } });
+  for (const dir of dirs) {
+    watch(dir, { recursive: true }, (_, name) => {
+      if (name && name.endsWith('.ts') && !name.endsWith('.d.ts') && !name.includes('.xcframework')) { clearTimeout(timer); timer = setTimeout(rebuild, 50); }
+    });
   }
   await new Promise(() => {});
 }
@@ -384,8 +408,11 @@ const thin = (from, name) => {
 thin(resolve(ns, 'NativeScript/libffi', target.libffi, 'libffi.a'), 'libnsxffi.a');
 // No Hermes: the seam makes its runtime from the one Exact's executable exports (hostRuntime in nsx.mm).
 thin(resolve(hermes, 'lib/libjsi.a'), 'libnsxjsi.a');
-writeFileSync(resolve(slice, 'slice.json'), JSON.stringify({ id: target.id, platform: target.platform, variant: target.variant }));
+// Exact compiles the module's Swift against every slice, so each must have the same seam header.
+const seamHeader = createHash('sha256').update(readFileSync(resolve(root, 'bridge/nsx.h'))).digest('hex').slice(0, 16);
+writeFileSync(resolve(slice, 'slice.json'), JSON.stringify({ id: target.id, platform: target.platform, variant: target.variant, seam: seamHeader }));
 const slices = readdirSync(xc).filter((d) => existsSync(resolve(xc, d, 'slice.json'))).map((d) => readJson(resolve(xc, d, 'slice.json')));
+const staleSlices = slices.filter((t) => t.seam !== seamHeader).map((t) => Object.keys(targets).find((k) => targets[k].id === t.id) ?? t.id);
 writeFileSync(resolve(xc, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -434,3 +461,7 @@ if (JSON.stringify(linked) !== JSON.stringify(link)) {
 
 const sizes = { metadata: statSync(metadata).size, bytecode: statSync(hbc).size, bridgeCode: statSync(bridgeObj).size };
 console.log(`NSExact.xcframework for ${targetName} in ${Math.round(performance.now() - started)} ms`, sizes);
+if (staleSlices.length) {
+  console.error(`the ${staleSlices.join(', ')} slice${staleSlices.length > 1 ? 's were' : ' was'} built from an older bridge/nsx.h, and Exact compiles the module against every slice: ${staleSlices.map((t) => `nsx.mjs build <app> --target ${t}`).join('; ')}`);
+  process.exit(1);
+}

@@ -52,7 +52,8 @@ final class NSExactModule: ExactModule {
             reply: { ctx, token, status, body in NSExactModule.from(ctx).reply(token, status, String(cString: body!)) },
             event: { ctx, view, kind, text in NSExactModule.from(ctx).events[view]?.send(kind, String(cString: text!)) },
             act: { ctx, element, action, text in NSExactModule.from(ctx).act(element, String(cString: action!), String(cString: text!)) },
-            diag: { ctx, kind, name, value, text in NSExactModule.from(ctx).diag(kind, String(cString: name!), value, String(cString: text!)) })
+            diag: { ctx, kind, name, value, text in NSExactModule.from(ctx).diag(kind, String(cString: name!), value, String(cString: text!)) },
+            agent: context.agent ? 1 : 0)
         var error: UnsafeMutablePointer<CChar>?
         client = nsx_attach("app", &host, &error)
         if client == 0 {

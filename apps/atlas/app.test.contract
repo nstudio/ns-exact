@@ -1,0 +1,15 @@
+// Run on a native host (verify ios): the answers come from the TypeScript module, which the web has not.
+test "a city brings its landmark and its local time"
+  tap "city-paris"
+  clock data
+  expect text "landmark" == "Eiffel Tower"
+  expect text "zone" == "Central European Time"
+
+test "the note is read on the device"
+  type "note" "Marie and I loved every minute of Paris."
+  clock data
+  expect text "name-Marie" == "Marie"
+  expect text "name-Paris" == "Paris"
+
+test "the live strip names the platform's file"
+  expect text "live-file" == "native.ios.ts"

@@ -1,7 +1,8 @@
 # Recipe: a native module in TypeScript
 
-The app's native module is one file, `modules/apple/native.ts`. It calls UIKit and every other
-Objective-C API directly through NativeScript. Do not write Swift: `NSExactModule.swift`,
+The app's native module is `modules/apple/native.ts`, or `native.ios.ts` and `native.macos.ts` with the code they
+share in plain files they import (`apps/atlas`). It calls UIKit, AppKit and every other Objective-C API directly
+through NativeScript. Do not write Swift: `NSExactModule.swift`,
 `NSExactTags.swift` and `NSExact.xcframework` are generated.
 
 ```ts
@@ -65,7 +66,11 @@ defineModule((session) => ({           // made once per session; session is its 
   any call from JavaScript, aborts the app: NativeScript rethrows it as an Objective-C exception. Catch there, and
   settle the `reply` or Promise with the failure.
 - **Time:** `session.after(ms, fn)` and `session.frames(fn)`, never `NSTimer` or `CADisplayLink`, so `clock +N` moves
-  it. `session.changed(topic)` re-asks answers that called `native.watch(topic)`.
+  it. Under the agent (`session.agent`), start nothing that ticks forever, such as an endless animation: the
+  agent's clock settles by running every tick due, and fails with `HatchFireLimit` on one that never ends.
+- **Reloads:** a reload evaluates the bundle again in the same VM, so what must outlive one (a live native view, a
+  ticker to stop) goes on `globalThis`, which the new code takes over. `bundleStamp()` says when the bundle's newest
+  source was saved and when it was built. `session.changed(topic)` re-asks answers that called `native.watch(topic)`.
 - **Hatches:** Exact owns the node's frame and paint, including `layer` borders and backgrounds. Add subviews,
   sublayers and gesture recognizers.
 - **Logs:** `console.log` shows in `bun exact.mjs agent ios logs`, and a thrown error names its line in
@@ -74,10 +79,22 @@ defineModule((session) => ({           // made once per session; session is its 
   `publish(name, value)`, as Swift's `context.diagnostics`. Counters and snapshots show in `agent ios state` under
   `hatches.scopes.module`, timings in `agent ios perf hatches`. Names are lowercase letters, digits, `-` and `.`.
 
+## Platform files
+
+- For each target, `nsx.mjs` takes `native.<platform>.ts` (`ios` for the simulator and the phone, `macos`) where it
+  exists, else `native.ts`, and resolves every relative import the same way: `./map` is `map.ios.ts` on iOS where
+  that exists, else `map.ts`. The checker reads the same files, so a shared file is checked against each SDK it
+  runs on, and `UIView` in a file the Mac imports is an error.
+- Put what both SDKs name alike in the shared file (MapKit, NaturalLanguage, Foundation), and pass it what differs
+  (haptics, colours, a control's target-action), as `apps/atlas/modules/apple/atlas.ts` takes a `Platform`.
+- A package does the same in `apple/`: `native.ts`, or `native.ios.ts` and `native.macos.ts`.
+
 ## The loop
 
-- Edit `native.ts`, then `bun ../../scripts/nsx.mjs js .` (the check and bytecode, well under a second). The next
-  `bun exact.mjs agent ios` drive runs it. No native rebuild.
+- Edit the module, then `bun ../../scripts/nsx.mjs js .` (the check and bytecode, well under a second). The next
+  `bun exact.mjs agent ios` drive runs it. No native rebuild. `js . --watch` (`--target macos` for the Mac)
+  rebuilds on every save, and a running app takes it within 50 ms; answers that called `native.watch('nsx:reload')`
+  ask again, so the screen shows what the new code answers.
 - On a phone, the app cannot read the Mac's files: build it with `nsx.mjs build . --target ios`, then keep
   `bun ../../scripts/nsx.mjs js . --target ios --serve` running. It rebuilds on each save and the phone runs the new
   code about half a second later, signed with a key the build embedded. The build records the Mac's address

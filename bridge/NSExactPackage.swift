@@ -26,6 +26,7 @@ private func nsxAttach(_ module: UnsafePointer<CChar>, _ ctx: UnsafeMutableRawPo
                        _ reply: @convention(c) (UnsafeMutableRawPointer?, UInt64, Int32, Text) -> Void,
                        _ event: @convention(c) (UnsafeMutableRawPointer?, UInt64, UInt32, Text) -> Void,
                        _ act: @convention(c) (UnsafeMutableRawPointer?, UInt64, Text, Text) -> Void,
+                       _ agent: UInt32,
                        _ error: ErrorOut) -> UInt64
 @_silgen_name("nsx_detach") private func nsxDetach(_ client: UInt64)
 @_silgen_name("nsx_free") private func nsxFree(_ text: UnsafeMutablePointer<CChar>?)
@@ -79,6 +80,7 @@ public final class __CLASS__: ExactPackage {
             { ctx, token, status, body in __CLASS__.from(ctx).reply(token, status, string(body)) },
             { ctx, view, kind, text in __CLASS__.from(ctx).event(view, kind, string(text)) },
             { _, _, _, _ in },
+            context.agent ? 1 : 0,
             &error)
         if client == 0 {
             startError = taken(error)

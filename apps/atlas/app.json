@@ -1,0 +1,77 @@
+{
+  "$schema": "../../vendor/exact/scripts/app.schema.json",
+  "name": "Atlas",
+  "short_name": "Atlas",
+  "id": "com.example.atlas-536312",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.example.atlas-536312",
+    "name": "Atlas"
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "minimumOS": "26.4",
+      "deviceFamily": [
+        "iphone",
+        "ipad"
+      ],
+      "link": [
+        "-lc++",
+        "-licucore",
+        "-framework",
+        "CoreFoundation",
+        "-framework",
+        "MapKit",
+        "-framework",
+        "NaturalLanguage",
+        "-framework",
+        "CoreHaptics",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZN6hermes2vm15NopCrashManagerD1Ev",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZTVN6hermes2vm15NopCrashManagerE"
+      ]
+    },
+    "macos": {
+      "minimumOS": "26.0",
+      "window": {
+        "width": 760,
+        "height": 980
+      },
+      "link": [
+        "-lc++",
+        "-licucore",
+        "-framework",
+        "CoreFoundation",
+        "-framework",
+        "MapKit",
+        "-framework",
+        "NaturalLanguage",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZN6hermes2vm15NopCrashManagerD1Ev",
+        "-Xlinker",
+        "-U",
+        "-Xlinker",
+        "__ZTVN6hermes2vm15NopCrashManagerE"
+      ]
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "ios": "0",
+      "macos": "0"
+    }
+  },
+  "modules": [
+    "atlas-globe"
+  ]
+}

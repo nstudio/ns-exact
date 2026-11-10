@@ -38,6 +38,8 @@ typedef struct NSXHost {
   NSXActFn act;
   // Null where the host keeps no diagnostics, as for a package.
   NSXDiagFn diag;
+  // Nonzero under the agent, whose virtual clock cannot settle past a ticker that never stops.
+  uint32_t agent;
 } NSXHost;
 
 // `module` is "app" for the app's own module, or a package's name. Returns 0 with
@@ -47,7 +49,7 @@ uint64_t nsx_attach(const char *module, const NSXHost *host, char **error);
 // compiled as a Swift module of its own.
 uint64_t nsx_attach_flat(const char *module, void *ctx, NSXLogFn log, NSXTopicFn changed, NSXNowFn now,
                          NSXFramesFn frames, NSXAfterFn after, NSXCancelFn cancel_after, NSXReplyFn reply,
-                         NSXEventFn event, NSXActFn act, char **error);
+                         NSXEventFn event, NSXActFn act, uint32_t agent, char **error);
 void nsx_detach(uint64_t client);
 void nsx_free(char *text);
 

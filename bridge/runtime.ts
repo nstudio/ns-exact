@@ -104,7 +104,17 @@ const logger = (...args: unknown[]) => host.log(state.current || [...state.clien
 globalThis.console = { log: logger, info: logger, warn: logger, error: logger, debug: logger };
 
 /** One session's side of Exact, as a Swift module's `context`. */
+/**
+ * When the newest source file of this bundle was saved and when nsx.mjs built it, in ms since the epoch
+ * on the Mac that built it; a phone's clock may differ from it by its own clock's error.
+ */
+export function bundleStamp(): { saved: number; built: number } {
+  return (globalThis as any).__nsxBundle ?? { saved: 0, built: 0 };
+}
+
 export interface Session {
+  /** True under the agent: keep nothing ticking forever (an endless `frames`), or its clock never settles. */
+  readonly agent: boolean;
   /** The session's clock: use it instead of CADisplayLink and NSTimer so the agent's `clock` moves your code. */
   now(): number;
   changed(topic: string): void;
@@ -125,7 +135,8 @@ export interface Session {
   };
 }
 
-const sessionOf = (who: () => number): Session => ({
+const sessionOf = (who: () => number, agent = false): Session => ({
+  agent,
   now: () => host.now(who()),
   changed: (topic) => host.changed(who(), topic),
   frames(body) {
@@ -210,9 +221,9 @@ const handlerFor = (c: Client, name: string) => {
 };
 
 const seam: Record<string, (client: number, ...rest: any[]) => unknown> = {
-  attach(client: number, module: string) {
+  attach(client: number, module: string, agent = false) {
     if (!state.modules.has(module)) throw new Error(`no NativeScript module ${module} is defined; is it in the bundle nsx.mjs built?`);
-    const c: Client = { module, instances: new Map(), tickers: new Map(), waits: new Map(), session: sessionOf(() => client) };
+    const c: Client = { module, instances: new Map(), tickers: new Map(), waits: new Map(), session: sessionOf(() => client, agent) };
     state.clients.set(client, c);
     try {
       definition(c);

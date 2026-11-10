@@ -405,7 +405,7 @@ uint64_t nsx_attach(const char *module, const NSXHost *host, char **error) {
   vm->clients[client] = *host;
   bool ok = guarded(client, error, [&] {
     jsi::Runtime &rt = *vm->rt;
-    seam().getPropertyAsFunction(rt, "attach").call(rt, static_cast<double>(client), str(rt, module));
+    seam().getPropertyAsFunction(rt, "attach").call(rt, static_cast<double>(client), str(rt, module), host->agent != 0);
   });
   if (!ok) {
     vm->clients.erase(client);
@@ -420,8 +420,8 @@ uint64_t nsx_attach(const char *module, const NSXHost *host, char **error) {
 
 uint64_t nsx_attach_flat(const char *module, void *ctx, NSXLogFn log, NSXTopicFn changed, NSXNowFn now,
                          NSXFramesFn frames, NSXAfterFn after, NSXCancelFn cancel_after, NSXReplyFn reply,
-                         NSXEventFn event, NSXActFn act, char **error) {
-  NSXHost host{ctx, log, changed, now, frames, after, cancel_after, reply, event, act, nullptr};
+                         NSXEventFn event, NSXActFn act, uint32_t agent, char **error) {
+  NSXHost host{ctx, log, changed, now, frames, after, cancel_after, reply, event, act, nullptr, agent};
   return nsx_attach(module, &host, error);
 }
 

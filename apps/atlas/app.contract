@@ -1,0 +1,104 @@
+// Atlas: every native capability on this screen is TypeScript, run by NativeScript, in
+// modules/apple: atlas.ts for both platforms, native.ios.ts and native.macos.ts for what differs.
+use StatBar, Badge from "exact:content"
+
+shape Place
+  city: string
+  landmark: string
+  time: string
+  zone: string
+
+shape Name
+  name: string
+  kind: string
+
+shape Reading
+  language: string
+  mood: string
+  score: number
+  fraction: number
+  names: Name[]
+
+shape Live
+  device: string
+  file: string
+  frameworks: string
+  edits: number
+  arrival: string
+
+shape Felt
+  played: string
+
+routes nav
+  home "/"
+
+fn cityName(id: string): string = id == "tokyo" ? "Tokyo" : id == "paris" ? "Paris" : id == "london" ? "London" : id == "newyork" ? "New York" : "Sydney"
+
+fn liveLine(l: Live): string = l.edits == 0 ? "Edit the native code and save: it runs here within a second, with no native build." : `Edit ${l.edits} on this ${l.device}: saved to running in ${l.arrival}, with no native build.`
+
+component Atlas
+  state city = "tokyo" persist
+  state note = "Yuki showed me Tokyo Tower at night, and I loved every minute of it."
+  resource place = placeInfo(city) as shape Place else empty()
+  resource reading = readNote(note) as shape Reading else empty()
+  resource live = liveInfo() as shape Live else empty()
+  mutation felt as shape Felt
+
+  action pick(id: string)
+    city = id
+  action edit(value: string)
+    note = value
+  action feel
+    send felt = feelIt()
+
+  view
+    main testId="root" navigationKey=`${top(nav).id}` width="100%" height="100%"
+      for e in stack(nav) key=e.id
+        column navigationKey=`${e.id}` navigationScroll="content" position="absolute" inset=0 display="flex" flex-direction="column"
+          header
+            text "Atlas" role="heading" aria-level=1
+            text "Native APIs, written in TypeScript"
+          scroll id="content" flex=1 min-height=0
+            column gap=20 padding=16 width="100%" box-sizing="border-box" max-width="46rem" margin-left="auto" margin-right="auto"
+              atlas-globe place=city height=330 border-radius=24 overflow="hidden" aria-label=`A 3D flyover of ${place.landmark}` testId="globe"
+              row overflow-x="auto"
+                row role="radiogroup" aria-label="City" flex-shrink=0 min-width="100%"
+                  for id in ["tokyo", "paris", "london", "newyork", "sydney"] key=id
+                    button role="radio" aria-checked=(city == id) press=pick(id) flex=1 testId=`city-${id}`
+                      text cityName(id)
+              column gap=4 padding-left=4 padding-right=4
+                text place.landmark role="heading" aria-level=2 testId="landmark"
+                row gap=8 align-items="baseline" flex-wrap="wrap"
+                  text place.time font-variant-numeric="tabular-nums" white-space="nowrap" testId="time"
+                  text place.zone color="-exact-secondary-label" testId="zone"
+              column gap=8 padding=18 border-radius=20 background-color="-exact-secondary-background" testId="live"
+                row gap=8 align-items="center" flex-wrap="wrap"
+                  Badge(label="Live", tint=some("-exact-system-green"))
+                  text live.file testId="live-file"
+                  text "TypeScript" color="-exact-secondary-label"
+                text liveLine(live) testId="live-line"
+                text live.frameworks color="-exact-secondary-label" font="-exact-footnote" testId="frameworks"
+              column gap=14 padding=18 border-radius=20 background-color="-exact-secondary-background"
+                text "Read the room" role="heading" aria-level=2
+                input value=note input=edit placeholder="Write anything, in any language" aria-label="Note" testId="note"
+                StatBar(label=reading.mood, value=reading.language, fraction=reading.fraction, tint=(reading.score < -0.1 ? some("-exact-system-orange") : some("-exact-system-green")))
+                if reading.names.length > 0
+                  row gap=8 flex-wrap="wrap"
+                    for n in reading.names key=`${n.kind}:${n.name}`
+                      row gap=6 align-items="center" flex-shrink=0 max-width="100%"
+                        Badge(label=n.kind, tint=some("AccentColor"))
+                        text n.name min-width=0 testId=`name-${n.name}`
+                else
+                  text "Names of people and places appear here." color="-exact-secondary-label" font="-exact-footnote"
+              column gap=8 align-items="center"
+                button press=feel buttonStyle="filled" disabled=pending(felt) testId="feel"
+                  text "Feel it"
+                match failure(felt)
+                  case some(f)
+                    text f.message color="-exact-secondary-label" font="-exact-footnote" testId="felt"
+                  case none
+                    match felt
+                      case some(r)
+                        text r.played color="-exact-secondary-label" font="-exact-footnote" testId="felt"
+                      case none
+                        text "A haptic signature, played natively" color="-exact-secondary-label" font="-exact-footnote" testId="felt"
