@@ -141,6 +141,37 @@ const diagnosticIds = {
   2451: ['ns-redeclared', 'remove the `declare`: the SDK typings declare it'],
 };
 
+// A misremembered selector is usually a prefix of the real one (`neighborsForStringMaximumCount` for
+// `neighborsForStringMaximumCountDistanceType`), which TypeScript's spelling suggestion does not offer.
+let sdkClasses = null;
+function nearMembers(type, wanted) {
+  if (!sdkClasses) {
+    sdkClasses = new Map();
+    const dir = sdkTypings();
+    for (const f of readdirSync(dir).filter((f) => f.endsWith('.d.ts'))) {
+      let current = null;
+      for (const line of readFileSync(resolve(dir, f), 'utf8').split('\n')) {
+        const head = line.match(/^declare (?:class|interface) ([\w$]+)(?:<[^{]*?>)?(?: extends ([\w$.]+))?/);
+        if (head) { current = sdkClasses.get(head[1]) ?? { parent: head[2], members: [] }; sdkClasses.set(head[1], current); continue; }
+        if (line.startsWith('}')) { current = null; continue; }
+        const member = current && line.match(/^\s+(?:static\s+)?(?:readonly\s+)?([\w$]+)\??[(:<]/);
+        if (member) current.members.push({ name: member[1], signature: line.trim().replace(/;$/, '') });
+      }
+    }
+  }
+  const shared = (a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+  const seen = new Set(), scored = [];
+  for (let t = type; t && sdkClasses.has(t) && t !== 'NSObject'; t = sdkClasses.get(t).parent) {
+    for (const { name, signature } of sdkClasses.get(t).members) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const score = shared(name, wanted);
+      if (score >= Math.min(8, wanted.length)) scored.push({ score, signature });
+    }
+  }
+  return scored.sort((a, b) => b.score - a.score || a.signature.length - b.signature.length).slice(0, 3).map((s) => s.signature);
+}
+
 function check() {
   const out = resolve(gen, 'tsconfig.json');
   writeFileSync(out, JSON.stringify({
@@ -167,6 +198,11 @@ function check() {
     }
   }
   if (tsc.status !== 0 && !found.length) throw new Error(`tsc failed: ${tsc.stderr || tsc.stdout}`);
+  for (const d of found) {
+    const m = d.id === 'ns-unknown-member' && !d.message.includes('Did you mean') && d.message.match(/Property '([\w$]+)' does not exist on type '([\w$]+)'/);
+    const near = m ? nearMembers(m[2], m[1]) : [];
+    if (near.length) d.message += ` The SDK's nearest: ${near.join('; ')}`;
+  }
   // In a module a `declare const X: any` shadows the SDK's X without an error, and nothing it names is checked.
   for (const { file } of modules) readFileSync(file, 'utf8').split('\n').forEach((source, i) => {
     const m = source.match(/^(\s*declare\s+(?:const|let|var)\s+)([\w$]+)/);
