@@ -67,11 +67,18 @@ fastest way to reach the long tail of platform APIs that Exact's roughly 60 pack
   any call, so the global `exact` cannot tell its session there: `defineModule` and `definePackage` now take a
   function of the session, made once per session as a Swift module is, and the global `exact` throws when two
   sessions make it ambiguous.
+- **2. The demo, ready to record:** `packages/haptic-pattern` plays a custom CoreHaptics pattern, which no Exact
+  package does (`playHaptic` plays the system's feedback generators). On the iPhone it answered "4 taps over 270 ms",
+  and on the simulator, which has no haptic engine, `NotSupportedError` by name. `NSError **` takes both `null` and
+  an `interop.Reference`, which the error fills (CoreHaptics -4815 on the simulator). Live tuning reaches the phone:
+  `nsx.mjs js . --target ios --serve` serves the bytecode the phone's development build long-polls, signed with an
+  HMAC key the build embedded; an edit to the package's source played on the phone 435 ms after the save, the VM
+  not restarted. To record: one prompt to an agent with `docs/native-in-typescript.md`, the package played on the
+  phone, then a live edit to the pattern.
 
 ## Suggested order
 
-Next: 2, the demo, now that a phone runs it. 6 leaves
-two questions:
+Next: record the demo (above), then 6's two questions:
 
 - **The remaining ~19 MB.** After the fixes above, the bridge step still adds 5 to 12 MB (the figures are noisy:
   freed pages leave the footprint late), most of it Hermes heap the 69 KB global installer touches. Next: a lazier
@@ -84,20 +91,6 @@ two questions:
 
 Each step below ends with something to drive and check. Before any device or new-app build, check free disk
 (`df -h`): each app's `target/` grows by 4 to 5 GB per platform.
-
-### 2. The demo
-
-- A package, `@ns-exact/haptic-pattern`: a send `playPattern(intensity, sharpness, count, gap)` built from
-  `CHHapticEngine`, `CHHapticPattern`, `CHHapticEvent` and `CHHapticEventParameter` (all verified in the SDK index),
-  and a source `hapticsStatus` from `CHHapticEngine.capabilitiesForHardware().supportsHaptics`. No Exact package plays
-  a custom pattern; `playHaptic` plays the system's feedback generators.
-- Risk to check first: these APIs return errors through `NSError **` out-parameters (`interop.PointerConvertible` in
-  the typings). Pass `null`, or an `interop.Reference`, and confirm the bridge accepts both on the device.
-- The simulator has no haptic hardware, so `hapticsStatus` answers `false` there; the demo runs on the iPhone.
-- Record it: one prompt to an agent, the package written and played on the phone, then live tuning, an edit to
-  `apple/native.ts`, pushed with `nsx.mjs js`. On a device that needs a way to reach the new bytecode: the development
-  path is a Mac path the phone cannot read. Options: serve it from Exact's dev server (`bun exact.mjs ios --device
-  --url`), or have the adapter fetch it from a local HTTP server `nsx.mjs js --serve` runs.
 
 ### 6, the open questions
 

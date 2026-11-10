@@ -70,7 +70,8 @@ void nsx_element(uint64_t client, const char *phase, uint64_t element, const cha
 void nsx_tick(uint64_t client, uint64_t token, double now, double seq);
 void nsx_fire_after(uint64_t client, uint64_t token);
 
-// Re-evaluates the development bytecode when it changed on disk; 1 when it did.
+// Re-evaluates the development bytecode when it changed on disk, or when a phone build's
+// development server sent newer signed bytecode; 1 when it did.
 int nsx_reload_if_changed(void);
 const char *nsx_dev_bytecode_path(void);
 

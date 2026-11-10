@@ -1,5 +1,6 @@
 // Nslab: every native capability on this screen is implemented in TypeScript
-// through NativeScript, in modules/apple/native.ts.
+// through NativeScript, in modules/apple/native.ts, and the haptic pattern in packages/haptic-pattern.
+use playPattern, hapticsStatus, HapticPlay, HapticsStatus from "@ns-exact/haptic-pattern"
 shape Device
   name: string
   system: string
@@ -14,11 +15,15 @@ component Nslab
   resource place = placeFor(query) as shape Place else empty()
   state level = "50"
   state query = "Portland"
+  resource haptics = hapticsStatus() as shape HapticsStatus else empty()
+  mutation played as shape HapticPlay
 
   action moved(value: string)
     level = value
   action edit(value: string)
     query = value
+  action buzz
+    send played = playPattern(intensity=1, sharpness=0.6, count=4, gap=90)
 
   view
     scroll height="100%" padding=20
@@ -30,3 +35,15 @@ component Nslab
         ns-slider level=level message=moved height=44 aria-label="Level" testId="slider"
         input value=query input=edit placeholder="Address" aria-label="Address" testId="query"
         text `${place.city} ${place.country}` testId="place"
+        button press=buzz disabled=pending(played) testId="buzz"
+          text "Play pattern"
+        text (haptics.supported ? "Haptics ready" : "No haptic engine") testId="haptics"
+        match failure(played)
+          case some(f)
+            text `${f.code}: ${f.message}` testId="played"
+          case none
+            match played
+              case some(p)
+                text `${p.events} taps over ${p.duration} ms` testId="played"
+              case none
+                text "Not played yet" testId="played"

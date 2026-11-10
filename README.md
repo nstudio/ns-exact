@@ -87,6 +87,7 @@ bun ../../scripts/nsx.mjs js .            # after an edit to native.ts: checked 
 | `scripts/nsx.mjs` | `check`, `js`, `build`, `package` |
 | `scripts/sessions-ios.mjs` | Two sessions of `apps/nslab` in Exact's sample host: apart, then one destroyed under the other |
 | `packages/local-search` | A package implemented in TypeScript |
+| `packages/haptic-pattern` | A custom CoreHaptics pattern, which no Exact package plays; `apps/nslab` uses it |
 | `apps/nslab` | An app module in TypeScript: a call, a later, a native view, a hatch, diagnostics |
 | `apps/mixed` | A Swift app module beside the TypeScript package |
 | `apps/ab-*` | The A/B's four apps, as the agents left them except the `declare` lines the checker now refuses; `ab-ns-1` and `ab-swift-1` are the device comparison |

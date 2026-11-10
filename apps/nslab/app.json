@@ -28,7 +28,9 @@
         "-framework",
         "MapKit",
         "-framework",
-        "CoreLocation"
+        "CoreLocation",
+        "-framework",
+        "CoreHaptics"
       ],
       "minimumOS": "26.4"
     }

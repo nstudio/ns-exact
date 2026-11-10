@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#include <CommonCrypto/CommonHMAC.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <hermes/hermes.h>
 #include <jsi/jsi.h>
@@ -24,7 +25,10 @@ extern const uint8_t nsx_globals_hbc[];
 extern const uint8_t nsx_globals_hbc_end[];
 extern const uint8_t nsx_module_hbc[];
 extern const uint8_t nsx_module_hbc_end[];
+// A file path, or on a phone the URL `nsx.mjs js --serve` serves; empty in a release build.
 extern const char nsx_dev_path[];
+// The key served bytecode is signed with, so nothing else on the network can run code in the app.
+extern const uint8_t nsx_dev_key[32];
 }
 
 namespace {
@@ -78,6 +82,9 @@ struct VM {
   uint64_t current = 0;
   std::shared_ptr<jsi::Buffer> live;
   timespec devStamp{};
+  // Served bytecode that arrived and awaits nsx_reload_if_changed, and the signature of what runs.
+  std::shared_ptr<jsi::Buffer> served;
+  std::string servedVersion;
   std::string startError;
   // What each startup step added to the process footprint, logged once to the first client.
   std::string startCost;
@@ -203,6 +210,57 @@ void installHost() {
   rt.global().setProperty(rt, "__nsxHost", host);
 }
 
+bool devIsURL() { return strncmp(nsx_dev_path, "http://", 7) == 0; }
+
+std::string signature(const uint8_t *bytes, size_t size) {
+  uint8_t mac[CC_SHA256_DIGEST_LENGTH];
+  CCHmac(kCCHmacAlgSHA256, nsx_dev_key, sizeof nsx_dev_key, bytes, size, mac);
+  static const char digits[] = "0123456789abcdef";
+  std::string hex;
+  for (uint8_t b : mac) { hex += digits[b >> 4]; hex += digits[b & 15]; }
+  return hex;
+}
+
+bool sameText(const std::string &a, const std::string &b) {
+  if (a.size() != b.size()) return false;
+  unsigned char diff = 0;
+  for (size_t i = 0; i < a.size(); i++) diff |= a[i] ^ b[i];
+  return diff == 0;
+}
+
+// Long-polls the development server: it answers at once with bytecode newer than `after`, or
+// after a while with 204. Only bytecode signed with this build's key is kept.
+void pollServed() {
+  NSString *url = [NSString stringWithFormat:@"%s?after=%s", nsx_dev_path, vm->servedVersion.c_str()];
+  NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+  request.timeoutInterval = 60;
+  NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request
+      completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSHTTPURLResponse *http = [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil;
+        std::shared_ptr<jsi::Buffer> bytes;
+        std::string version;
+        if (!error && http.statusCode == 200 && data.length) {
+          NSString *claimed = [http valueForHTTPHeaderField:@"X-NSX-Signature"];
+          version = signature(static_cast<const uint8_t *>(data.bytes), data.length);
+          if (claimed && sameText(version, claimed.UTF8String)) {
+            const uint8_t *begin = static_cast<const uint8_t *>(data.bytes);
+            bytes = std::make_shared<OwnedBytes>(std::vector<uint8_t>(begin, begin + data.length));
+          } else {
+            NSLog(@"[ns] refused development bytecode from %s: its signature is not this build's", nsx_dev_path);
+          }
+        }
+        double wait = error || (http && http.statusCode >= 400) ? 1.0 : 0;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          if (bytes) {
+            vm->served = bytes;
+            vm->servedVersion = version;
+          }
+          pollServed();
+        });
+      }];
+  [task resume];
+}
+
 double footprintMB() {
   task_vm_info_data_t info;
   mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
@@ -239,7 +297,7 @@ bool start() {
     installHost();
     std::shared_ptr<jsi::Buffer> bytes;
     struct stat st;
-    if (nsx_dev_path[0] && stat(nsx_dev_path, &st) == 0) {
+    if (nsx_dev_path[0] && !devIsURL() && stat(nsx_dev_path, &st) == 0) {
       vm->devStamp = st.st_mtimespec;
       bytes = readFile(nsx_dev_path);
     }
@@ -269,6 +327,10 @@ bool start() {
         }
       });
   CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
+  if (devIsURL()) {
+    vm->servedVersion = signature(vm->live->data(), vm->live->size());
+    pollServed();
+  }
   return true;
 }
 
@@ -408,6 +470,12 @@ void nsx_fire_after(uint64_t client, uint64_t token) {
 
 int nsx_reload_if_changed(void) {
   if (!vm || !vm->rt || !nsx_dev_path[0]) return 0;
+  if (devIsURL()) {
+    if (!vm->served) return 0;
+    auto bytes = std::move(vm->served);
+    vm->live = bytes;
+    return guarded(vm->current, nullptr, [&] { vm->rt->evaluateJavaScript(bytes, "native.hbc"); }) ? 1 : 0;
+  }
   struct stat st;
   if (stat(nsx_dev_path, &st) != 0) return 0;
   if (st.st_mtimespec.tv_sec == vm->devStamp.tv_sec && st.st_mtimespec.tv_nsec == vm->devStamp.tv_nsec) return 0;

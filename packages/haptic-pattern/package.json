@@ -1,0 +1,10 @@
+{
+  "name": "@ns-exact/haptic-pattern",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom haptic patterns through CoreHaptics, implemented in TypeScript with NativeScript.",
+  "exports": {
+    ".": "./exact.json",
+    "./apple": "./apple/exact.json"
+  }
+}

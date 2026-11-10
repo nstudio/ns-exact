@@ -4,11 +4,13 @@
 //   bun scripts/nsx.mjs check <app dir> [--json]   type-check them against the SDK; build and js run it first
 //   bun scripts/nsx.mjs build <app dir>            everything, including NSExact.xcframework
 //   bun scripts/nsx.mjs js <app dir>               only the bytecode a running development app reloads
+//   bun scripts/nsx.mjs js <app dir> --target ios --serve [--port N]   serve it to a phone, rebuilt on each edit
 //   bun scripts/nsx.mjs package <package dir>      write the package's Swift adapter, apple/NSExactPackage.swift
 // Each app verb takes --target ios-sim|ios|macos (default ios-sim; ios is a device); build and js take --no-check.
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { createHmac, randomBytes } from 'node:crypto';
+import { homedir, networkInterfaces } from 'node:os';
 import { basename, dirname, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
@@ -67,11 +69,19 @@ mkdirSync(gen, { recursive: true });
 // which package implementations an app links, narrowed to those served by NSExactPackage.swift.
 const ownModule = resolve(app, 'modules/apple/native.ts');
 const { appleImplementations } = await import(resolve(root, 'vendor/exact/js/bake/src/typescript.mjs'));
+// Bun copies a `file:` dependency into node_modules, so its native.ts is read from the source
+// directory: an edit there then reaches the bundle without another `bun install`.
+const appDependencies = existsSync(resolve(app, 'package.json')) ? readJson(resolve(app, 'package.json')).dependencies ?? {} : {};
+const sourceOf = (name, installed) => {
+  const spec = appDependencies[name];
+  return typeof spec === 'string' && spec.startsWith('file:') ? resolve(app, spec.slice(5), 'apple/native.ts') : installed;
+};
 const packages = appleImplementations(app, target.platform)
   .filter((p) => p.sources.some((f) => basename(f) === 'NSExactPackage.swift'))
   .map((p) => {
     const dir = dirname(p.sources.find((f) => basename(f) === 'NSExactPackage.swift'));
-    return { name: readJson(resolve(dir, '../exact.json')).name, file: resolve(dir, 'native.ts') };
+    const name = readJson(resolve(dir, '../exact.json')).name;
+    return { name, file: sourceOf(name, resolve(dir, 'native.ts')) };
   });
 const modules = [...(existsSync(ownModule) ? [{ name: 'app', file: ownModule }] : []), ...packages];
 if (!modules.length) throw new Error(`${app} has no modules/apple/native.ts and uses no NativeScript package`);
@@ -185,8 +195,58 @@ async function buildJs() {
   return { js, hbc };
 }
 
+// A phone cannot read the Mac's files, so its development build fetches the bytecode from `js --serve`
+// at the Mac's address, and runs only what is signed with the key the build embedded.
+const servesPhone = dev && targetName === 'ios';
+const devKey = resolve(gen, 'dev.key');
+const devPort = Number(rest.includes('--port') ? rest[rest.indexOf('--port') + 1] : 8790);
+const macAddress = () => process.env.NSX_DEV_HOST ?? [...(networkInterfaces().en0 ?? []), ...Object.values(networkInterfaces()).flat()]
+  .find((n) => n?.family === 'IPv4' && !n.internal)?.address;
+
 const started = performance.now();
-const { js, hbc } = await buildJs();
+let { js, hbc } = await buildJs();
+if (verb === 'js' && rest.includes('--serve')) {
+  if (!servesPhone) throw new Error('--serve is for a phone: --target ios, without --release');
+  if (!existsSync(devKey)) throw new Error(`no ${relative(process.cwd(), devKey)}: build the phone's development app first (nsx.mjs build <app> --target ios)`);
+  const key = readFileSync(devKey);
+  let bytes = readFileSync(hbc), version = createHmac('sha256', key).update(bytes).digest('hex');
+  const waiting = new Set();
+  const answer = () => new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream', 'X-NSX-Signature': version } });
+  Bun.serve({
+    port: devPort,
+    hostname: '0.0.0.0',
+    idleTimeout: 0,
+    fetch(request) {
+      if (new URL(request.url).pathname !== '/native.hbc') return new Response('not found', { status: 404 });
+      if (new URL(request.url).searchParams.get('after') !== version) return answer();
+      return new Promise((settle) => {
+        const held = { settle };
+        waiting.add(held);
+        setTimeout(() => { if (waiting.delete(held)) settle(new Response(null, { status: 204 })); }, 30000);
+      });
+    },
+  });
+  console.log(`serving ${basename(hbc)} on port ${devPort}; edits to ${modules.map((m) => relative(process.cwd(), m.file)).join(', ')} rebuild it`);
+  let timer = null;
+  const rebuild = async () => {
+    const t0 = performance.now();
+    const found = check();
+    for (const d of found) console.error(`${d.file}:${d.line}:${d.col} [${d.id}] ${d.message}`);
+    if (found.some((d) => d.severity === 'error')) return;
+    try { ({ js, hbc } = await buildJs()); } catch (e) { console.error(e.message); return; }
+    bytes = readFileSync(hbc);
+    version = createHmac('sha256', key).update(bytes).digest('hex');
+    for (const held of waiting) held.settle(answer());
+    console.log(`rebuilt in ${Math.round(performance.now() - t0)} ms; sent to ${waiting.size} waiting`);
+    waiting.clear();
+  };
+  const { watch } = await import('node:fs');
+  // Directories, not files: an editor that saves by replacing the file ends a file's watch.
+  for (const file of new Set(modules.map((m) => m.file))) {
+    watch(dirname(file), (_, name) => { if (name === basename(file)) { clearTimeout(timer); timer = setTimeout(rebuild, 50); } });
+  }
+  await new Promise(() => {});
+}
 if (verb === 'js') {
   console.log(`${modules.map((m) => m.name).join(', ')} -> ${basename(hbc)} in ${Math.round(performance.now() - started)} ms (a running development app reloads it)`);
   process.exit(0);
@@ -255,8 +315,15 @@ if (!existsSync(metadata) || !dev) {
 
 const blob = resolve(gen, 'app_blob.S');
 const embed = (name, file) => `.globl _${name}\n.balign 16\n_${name}:\n.incbin "${file}"\n.globl _${name}_end\n_${name}_end:\n.byte 0\n`;
-const devPath = dev ? hbc : '';
-writeFileSync(blob, `.section __TEXT,__const\n${embed('nsx_metadata', metadata)}${embed('nsx_globals_hbc', globalsHbc)}${embed('nsx_module_hbc', hbc)}.globl _nsx_dev_path\n_nsx_dev_path:\n.asciz "${devPath}"\n`);
+let devPath = dev ? hbc : '';
+if (servesPhone) {
+  if (!existsSync(devKey)) writeFileSync(devKey, randomBytes(32));
+  const address = macAddress();
+  if (!address) throw new Error('no IPv4 address for the phone to reach this Mac; set NSX_DEV_HOST');
+  devPath = `http://${address}:${devPort}/native.hbc`;
+}
+const key = servesPhone ? `.incbin "${devKey}"` : '.space 32';
+writeFileSync(blob, `.section __TEXT,__const\n${embed('nsx_metadata', metadata)}${embed('nsx_globals_hbc', globalsHbc)}${embed('nsx_module_hbc', hbc)}.globl _nsx_dev_path\n_nsx_dev_path:\n.asciz "${devPath}"\n.globl _nsx_dev_key\n_nsx_dev_key:\n${key}\n`);
 const blobObj = resolve(gen, 'app_blob.o');
 run('xcrun', ['--sdk', target.sdk, 'clang', ...common, '-c', blob, '-o', blobObj]);
 

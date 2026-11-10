@@ -1,0 +1,19 @@
+{
+  "kind": "implementation",
+  "implements": "@ns-exact/haptic-pattern@^0.1",
+  "platform": "apple",
+  "targets": ["ios"],
+  "shapes": {},
+  "options": {},
+  "names": [],
+  "views": [],
+  "hatches": [],
+  "sources": {
+    "swift": ["NSExactPackage.swift"]
+  },
+  "frameworks": {
+    "CoreHaptics": { "ios": "17.0" }
+  },
+  "artifacts": [],
+  "class": "HapticPatternPackage"
+}

@@ -1,0 +1,48 @@
+{
+  "kind": "interface",
+  "name": "@ns-exact/haptic-pattern",
+  "version": "0.1.0",
+  "grants": [],
+  "substitute": "implementation",
+  "shapes": {
+    "HapticPlay": {
+      "events": "number",
+      "duration": "number"
+    },
+    "HapticsStatus": {
+      "supported": "bool"
+    }
+  },
+  "views": {},
+  "names": [
+    {
+      "send": "playPattern",
+      "permission": "none",
+      "options": {
+        "intensity": "number",
+        "sharpness": "number",
+        "count": "number",
+        "gap": "number"
+      },
+      "answers": "HapticPlay",
+      "substitute": {
+        "unsupported": ["web", "linux", "windows", "terminal"],
+        "default": { "events": 0, "duration": 0 }
+      }
+    },
+    {
+      "source": "hapticsStatus",
+      "live": true,
+      "answers": "HapticsStatus",
+      "substitute": {
+        "default": { "supported": false },
+        "targets": {
+          "web": { "supported": false },
+          "linux": { "supported": false },
+          "windows": { "supported": false },
+          "terminal": { "supported": false }
+        }
+      }
+    }
+  ]
+}

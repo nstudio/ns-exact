@@ -57,6 +57,8 @@ defineModule((session) => ({           // made once per session; session is its 
   the function `defineModule` takes, as each gets its own Swift module. Use its `session`, not the global `exact`,
   which knows the session only inside a call from Exact or when only one is running: in a target-action or a
   completion handler with two sessions it throws.
+- **`NSError **` parameters:** pass `new interop.Reference<NSError>()` and read `.value` when the call answers nil or
+  false; `null` ignores the error. `packages/haptic-pattern` wraps this as `checked(what, (e) => …)`.
 - **Errors in native callbacks:** an error a target-action, delegate method or completion handler throws, outside
   any call from JavaScript, aborts the app: NativeScript rethrows it as an Objective-C exception. Catch there, and
   settle the `reply` or Promise with the failure.
@@ -74,6 +76,10 @@ defineModule((session) => ({           // made once per session; session is its 
 
 - Edit `native.ts`, then `bun ../../scripts/nsx.mjs js .` (the check and bytecode, well under a second). The next
   `bun exact.mjs agent ios` drive runs it. No native rebuild.
+- On a phone, the app cannot read the Mac's files: build it with `nsx.mjs build . --target ios`, then keep
+  `bun ../../scripts/nsx.mjs js . --target ios --serve` running. It rebuilds on each save and the phone runs the new
+  code about half a second later, signed with a key the build embedded. The build records the Mac's address
+  (`NSX_DEV_HOST` overrides it); when the address changes, build again.
 - A new view tag in `app.json`, a new hatch word or a new framework needs
   `bun ../../scripts/nsx.mjs build . && bun exact.mjs ios` (about 20 s). A framework the app did not link goes in
   `app.json` `host.ios.link`, as `"-framework", "Name"`.
@@ -105,6 +111,7 @@ and `apps/mixed` uses it beside a Swift module.
 - `bun scripts/nsx.mjs package <package dir>` writes `apple/NSExactPackage.swift`, the package's adapter. Run it
   again after a change to `class` or the package's name.
 - The app installs it like any package (`"@scope/name": "file:<path>"` in `package.json`, then `bun install`).
+  `nsx.mjs` reads a `file:` package's `native.ts` from its source directory, so an edit needs no new `bun install`.
   `nsx.mjs check`, `js` and `build` find every NativeScript package the app uses, with Exact's own resolver, and
   check and bundle them with the app's `native.ts`, if it has one, into one VM.
 - `definePackage` takes a function of the session too. A package has `session.after`, but not `frames`, hatches or
